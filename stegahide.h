@@ -87,7 +87,7 @@ private:
     int getMaskBits() {
         int bits = 0;
         for (int i = 0; i < 8; ++i) {
-            bits += (mask & (1 << i));
+            bits += (mask & (1 << i)) != 0;
         }
         return bits;
     };

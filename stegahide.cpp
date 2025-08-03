@@ -181,8 +181,10 @@ int Steganotify::embedData() {
         std::cout << "Error: Secret file does not exist: " << secretDataFilename << std::endl;
         return STEGAHIDE_NO_FILE;
     }
+    secretfile.close();
 
     secretDataSize = static_cast<uint32_t>(std::filesystem::file_size(secretDataFilename));
+    secretfile.open(secretDataFilename, std::ios::binary);
     secretData = new uint8_t[secretDataSize];
     secretfile.read(reinterpret_cast<char*>(secretData), secretDataSize);
     if (!secretfile) {

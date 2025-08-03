@@ -53,10 +53,9 @@ int Steganotify::encodeImageData() {
 
     std::vector<int> compression_params;
 
-    if (outputFileFormat == "jpg" || outputFileFormat == "jpeg") {
-        compression_params.push_back(cv::IMWRITE_JPEG_QUALITY);
-        compression_params.push_back(95); // Default JPEG quality
-    } else if (outputFileFormat == "png") {
+    if (outputFileFormat == "jpg" || outputFileFormat == "jpeg" || outputFileFormat == "png") {
+        outputFileFormat = "png"; // jpeg is lossy, force to png for lossless
+        outputFilename = outputFileBaseName + "." + outputFileFormat;
         compression_params.push_back(cv::IMWRITE_PNG_COMPRESSION);
         compression_params.push_back(9); // Maximum PNG compression
     } else if (outputFileFormat == "bmp") {

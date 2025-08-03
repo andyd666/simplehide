@@ -237,7 +237,15 @@ void Steganotify::genarateDataMaskSequence() {
     for (uint32_t i = 0; i < secretDataSize; ++i) {
         std::unique_ptr<uint8_t[]> splitData(new uint8_t[splitSize]);
         for (int j = 0; j < splitSize; ++j) {
-            embedDataMaskSequence[i * splitSize + j] = (secretData[i] >> (bitsInMask * j)) & (bitsInMask * 2 - 1);
+            uint8_t tmpByteMask = 0x00;
+            if (bitsInMask == 1)
+                tmpByteMask = 0x01;
+            else if (bitsInMask == 2)
+                tmpByteMask = 0x03;
+            else if (bitsInMask == 4)
+                tmpByteMask = 0x0F;
+
+            embedDataMaskSequence[i * splitSize + j] = (secretData[i] >> (bitsInMask * j)) & tmpByteMask;
         }
 
         if (fullVerboseOutput) {
