@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.10)
-project(stegahide)
+project(stegahide-lib)
+
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -23,12 +24,5 @@ set(BUILD_SHARED_LIBS OFF)
 
 
 file(GLOB SOURCES "*.cpp" "*.c")
+add_executable(run_test ${SOURCES})
 
-
-add_executable(stegahide ${SOURCES})
-
-add_subdirectory(stegahidelib)
-add_subdirectory(lodepng)
-
-add_library(stegahidelib STATIC ${SOURCES})
-add_library(lodepng STATIC ${SOURCES})
