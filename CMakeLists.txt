@@ -10,25 +10,26 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 # Set flags for Debug and Release
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -Wall -Wextra -Wpedantic")
-
+add_compile_options(-O3 -Wall -Wextra -Wpedantic -Werror)
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     add_definitions(-DDEBUG=true)
+    add_compile_options(-g)
+else()
+    add_link_options(-s)
 endif()
 
-set(CMAKE_CXX_FLAGS_DEBUG "-g")
-set(CMAKE_CXX_FLAGS_RELEASE "-s")
+
 set(BUILD_SHARED_LIBS OFF)
 
 
 file(GLOB SOURCES "*.cpp" "*.c")
 
 
-add_executable(stegahide ${SOURCES})
-
 add_subdirectory(stegahidelib)
 add_subdirectory(lodepng)
 
 add_library(stegahidelib STATIC ${SOURCES})
 add_library(lodepng STATIC ${SOURCES})
+
+add_executable(stegahide ${SOURCES})

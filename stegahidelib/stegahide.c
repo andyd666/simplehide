@@ -6,56 +6,80 @@
 
 #define BITS_SIZE_T (sizeof(size_t) * 8)
 
-
-static int find_hidden_data_size_position(uint8_t *data, size_t data_size, uint8_t hidden_data_size[BITS_SIZE_T]);
-static int get_correct_data_bits_in_sequence(uint8_t data[BITS_SIZE_T], uint8_t hidden_data_size[BITS_SIZE_T]);
+#define ENABLE_DEBUG 1
 
 
-int embed_hidden_data_size(uint8_t *data, size_t data_size, size_t hidden_data_size) {
-    if (data == NULL || data_size < BITS_SIZE_T || hidden_data_size == 0) {
+
+// Embedding data:
+static size_t find_hidden_data_size_position(uint8_t *data, size_t dataSize, uint8_t hiddenDataSize[BITS_SIZE_T]);
+static size_t get_correct_data_bits_in_sequence(uint8_t data[BITS_SIZE_T], uint8_t hiddenDataSize[BITS_SIZE_T]);
+
+
+size_t embed_hidden_data_size(uint8_t *data, size_t dataSize, size_t hiddenDataSize) {
+    if (data == NULL || dataSize < BITS_SIZE_T || hiddenDataSize == 0) {
         return STEGAHIDE_INVALID_DATA;
     }
 
-    uint8_t hidden_data_size_bytes[BITS_SIZE_T];
-    
-    for (int i = 0; i < BITS_SIZE_T; i++) {
-        hidden_data_size_bytes[i] = (hidden_data_size << i) & 0x01; // Extract each bit
+    uint8_t hiddenDataSizeBytes[BITS_SIZE_T];
+
+    for (size_t i = 0; i < BITS_SIZE_T; i++) {
+        hiddenDataSizeBytes[i] = (hiddenDataSize >> i) & 0x01; // Extract each bit
     }
 
-    int position = find_hidden_data_size_position(data, data_size, hidden_data_size_bytes);
-    if (position < 0 || position + BITS_SIZE_T > data_size) {
+    size_t position = find_hidden_data_size_position(data, dataSize, hiddenDataSizeBytes);
+    if (position + BITS_SIZE_T > dataSize) {
         return STEGAHIDE_SIZE_EMBED_ERROR;
     }
 
-    for (int i = 0; i < BITS_SIZE_T; i++) {
-        data[position + i] = (data[position + i] & ~0x01) | (hidden_data_size_bytes[i] & 0x01);
+    if (ENABLE_DEBUG) {
+        printf("Found best hidden data size position: %ld\n", position);
     }
+
+    for (size_t i = 0; i < BITS_SIZE_T; i++) {
+        data[position + i] = (data[position + i] & ~0x01) | (hiddenDataSizeBytes[i] & 0x01);
+        data[i] = (data[i] & ~0x01) | ((position >> i) & 0x01);
+    }
+
+
+
+    return position;
 }
 
 
-static int find_hidden_data_size_position(uint8_t *data, size_t data_size, uint8_t hidden_data_size[BITS_SIZE_T]) {
-    int current_hidden_data_size_position = BITS_SIZE_T; // cannot start at 0
-    int current_hidden_data_size_bits = 0;
+static size_t find_hidden_data_size_position(uint8_t *data, size_t dataSize, uint8_t hiddenDataSize[BITS_SIZE_T]) {
+    size_t currentHiddenDataSizePosition = BITS_SIZE_T; // cannot start at 0
+    size_t currentHiddenDataSizeBits = 0;
 
-    for (int i = BITS_SIZE_T; i < data_size - BITS_SIZE_T; i++) {
-        int correct_bits = get_correct_data_bits_in_sequence(&data[i], hidden_data_size);
-        if (correct_bits == BITS_SIZE_T) {
+    for (size_t i = BITS_SIZE_T; i < dataSize - BITS_SIZE_T; i++) {
+        size_t correctBits = get_correct_data_bits_in_sequence(&data[i], hiddenDataSize);
+        if (correctBits == BITS_SIZE_T) {
+            if (ENABLE_DEBUG) {
+                printf("New Correct bits position: %ld\n", i);
+                printf("New Correct bits:          %ld\n", correctBits);
+            }
             return i;
-        } else if (correct_bits > current_hidden_data_size_bits) {
-            current_hidden_data_size_bits = correct_bits;
-            current_hidden_data_size_position = i;
+        } else if (correctBits > currentHiddenDataSizeBits) {
+            currentHiddenDataSizeBits = correctBits;
+            currentHiddenDataSizePosition = i;
+            if (ENABLE_DEBUG) {
+                printf("New Correct bits position: %ld\n", currentHiddenDataSizePosition);
+                printf("New Correct bits:          %ld\n", correctBits);
+            }
         }
     }
-    return current_hidden_data_size_position;
+    return currentHiddenDataSizePosition;
 }
 
 
-static int get_correct_data_bits_in_sequence(uint8_t data[BITS_SIZE_T], uint8_t hidden_data_size[BITS_SIZE_T]) {
-    int correct_bits = 0;
-    for (int i = 0; i < BITS_SIZE_T; i++) {
-        if ((data[i] & 0x01) == (hidden_data_size[i] & 0x01)) {
-            correct_bits++;
+static size_t get_correct_data_bits_in_sequence(uint8_t data[BITS_SIZE_T], uint8_t hiddenDataSize[BITS_SIZE_T]) {
+    size_t correctBits = 0;
+    for (size_t i = 0; i < BITS_SIZE_T; i++) {
+        if ((data[i] & 0x01) == (hiddenDataSize[i] & 0x01)) {
+            correctBits++;
         }
     }
-    return correct_bits;
+    return correctBits;
 }
+
+
+// Extracting data:

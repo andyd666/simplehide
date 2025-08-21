@@ -31,5 +31,8 @@ typedef enum {
     STEGAHIDE_SIZE_EMBED_ERROR =  9,
 } StegahideStatus;
 
+// Embedding data:
+size_t embed_hidden_data_size(uint8_t *data, size_t dataSize, size_t hiddenDataSize);
+
 
 #endif // __STEGAHIDE_H__
