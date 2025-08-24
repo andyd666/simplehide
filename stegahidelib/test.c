@@ -14,26 +14,30 @@ void sprintf_bits(char *bits, size_t num, size_t numBits);
 
 int main() {
     size_t fileDataSize = 128 * MB; // Example size, adjust as needed
-    size_t hiddenDataSize = 1 * KB;
+    size_t hiddenRawDataSize = 1 * KB;
+    size_t hiddenMaskedDataSize;
     uint8_t *fileData = NULL;
     uint8_t *hiddenData = NULL;
+    uint8_t *hiddenMaskedData = NULL;
 
     size_t hiddenDataSizePosition;
     char *hiddenDataSizeBits = NULL;
     char *byteBits = NULL;
 
+    uint8_t mask = 0x18;
+
     printf("Running test for stegohide-lib\n");
 
-    set_embedding_verbose_level(3);
+    set_embedding_verbose_level(4);
 
-    printf("Allocating data.\n\tFile:   %ld bytes\n\tHidden: %ld bytes\n", fileDataSize, hiddenDataSize);
+    printf("Allocating rawData.\n\tFile:   %ld bytes\n\tHidden: %ld bytes\n", fileDataSize, hiddenRawDataSize);
     fileData = malloc(fileDataSize);
-    hiddenData = malloc(hiddenDataSize);
+    hiddenData = malloc(hiddenRawDataSize);
     hiddenDataSizeBits = malloc(BITS_SIZE_T + 1);
     byteBits = malloc(8 + 1);
 
     if (!fileData || !hiddenData) {
-        printf("Error allocating data. Consider decreasing data size\n");
+        printf("Error allocating rawData. Consider decreasing rawData size\n");
         printf("fileData           = 0x%08lX\n", (size_t)fileData);
         printf("hiddenData         = 0x%08lX\n", (size_t)hiddenData);
         printf("hiddenDataSizeBits = 0x%08lX\n", (size_t)hiddenDataSizeBits);
@@ -50,11 +54,21 @@ int main() {
         fileData[i] = rand();
     }
 
-    for (size_t i = 0; i < hiddenDataSize; i++) {
+    for (size_t i = 0; i < hiddenRawDataSize; i++) {
         hiddenData[i] = rand();
     }
 
-    embed_hidden_data_size(fileData, &hiddenDataSizePosition, fileDataSize, hiddenDataSize);
+    embed_hidden_data_size(fileData, &hiddenDataSizePosition, fileDataSize, hiddenRawDataSize);
+
+    get_hidden_data_masked_size(mask, hiddenRawDataSize, &hiddenMaskedDataSize);
+
+    hiddenMaskedData = malloc(hiddenMaskedDataSize);
+    if (!hiddenMaskedData) {
+        printf("Error allocating hiddenMaskedData\n");
+        goto teardown;
+    }
+
+    generate_masked_hidden_data(hiddenData, hiddenRawDataSize, hiddenMaskedData, hiddenMaskedDataSize, mask);
 
 teardown:
     if (fileData)
@@ -65,6 +79,9 @@ teardown:
 
     if (hiddenDataSizeBits)
         free(hiddenDataSizeBits);
+
+    if (hiddenMaskedData)
+        free(hiddenMaskedData);
 
     printf("Test finished\n");
     return 0;

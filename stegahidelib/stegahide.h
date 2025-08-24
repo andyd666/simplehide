@@ -20,10 +20,21 @@ typedef enum {
     STEGAHIDE_SIZE_EMBED_ERROR =  9,
 } StegahideStatus;
 
+
+typedef enum {
+    STEGAHIDE_MASK_TYPE_UNKNOWN         = 0,
+    STEGAHIDE_MASK_TYPE_SIMPLE_UNIFORM  = 1, // e.g. 0x01, 0x03, 0x0F, 0xFF
+    STEGAHIDE_MASK_TYPE_SHIFTED_UNIFORM = 2, // e.g. 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80,
+                                             //      0x06, 0x0C, 0x18, 0x30, 0x60, 0xC0,
+                                             //      0x1E, 0x3C, 0x78, 0xF0
+    STEGAHIDE_MASK_TYPE_COMPLEX         = 3, // e.g. every else that is allowed
+} StegahideMaskType;
+
 void set_embedding_verbose_level(int level);
 
-// Embedding data:
-StegahideStatus embed_hidden_data_size(uint8_t *data, size_t *sizePosition, size_t dataSize, size_t hiddenDataSize);
+// Embedding rawData:
+StegahideStatus embed_hidden_data_size(uint8_t *rawData, size_t *sizePosition, size_t rawDataSize, size_t hiddenRawDataSize);
+StegahideStatus get_hidden_data_masked_size(uint8_t mask, size_t hiddenRawDataSize, size_t *maskedHiddenDataSize);
 
 
 #endif // __STEGAHIDE_H__
