@@ -11,10 +11,9 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 # Set flags for Debug and Release
-add_compile_options(-O3 -Wall -Wextra -Wpedantic -Werror)
+add_compile_options(-O3 -Wall -Wextra -Wpedantic -Werror -Wno-error=unused-but-set-variable)
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    add_definitions(-DDEBUG=true)
     add_compile_options(-g)
 else()
     add_link_options(-s)

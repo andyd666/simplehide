@@ -14,7 +14,6 @@ endif()
 add_compile_options(-O3 -Wall -Wextra -Wpedantic -Werror)
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    add_definitions(-DDEBUG=true)
     add_compile_options(-g)
 else()
     add_link_options(-s)

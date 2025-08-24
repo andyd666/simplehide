@@ -24,6 +24,8 @@ int main() {
 
     printf("Running test for stegohide-lib\n");
 
+    set_embedding_verbose_level(3);
+
     printf("Allocating data.\n\tFile:   %ld bytes\n\tHidden: %ld bytes\n", fileDataSize, hiddenDataSize);
     fileData = malloc(fileDataSize);
     hiddenData = malloc(hiddenDataSize);
@@ -52,31 +54,7 @@ int main() {
         hiddenData[i] = rand();
     }
 
-    hiddenDataSizePosition = embed_hidden_data_size(fileData, fileDataSize, hiddenDataSize);
-    printf("Expected embedded size position:      %ld\n", hiddenDataSizePosition);
-
-    get_size_in_bits(hiddenDataSizeBits, hiddenDataSizePosition);
-    printf("Expected embedded size location bits: %s\n", hiddenDataSizeBits);
-
-    for (size_t i = 0; i < BITS_SIZE_T; i++) {
-        sprintf_bits(byteBits, fileData[i], 8);
-        printf("pos [%2ld] [%10ld] =\t0x%02x\t%s\n",
-                i,
-                i,
-                fileData[i],
-                byteBits);
-    }
-
-    get_size_in_bits(hiddenDataSizeBits, hiddenDataSize);
-    printf("Expected embedded size bits:          %s\n", hiddenDataSizeBits);
-    for (size_t i = 0; i < BITS_SIZE_T; i++) {
-        sprintf_bits(byteBits, fileData[hiddenDataSizePosition + i], 8);
-        printf("pos [%2ld] [%10ld] =\t0x%02x\t%s\n",
-                i,
-                hiddenDataSizePosition + i,
-                fileData[hiddenDataSizePosition + i],
-                byteBits);
-    }
+    embed_hidden_data_size(fileData, &hiddenDataSizePosition, fileDataSize, hiddenDataSize);
 
 teardown:
     if (fileData)

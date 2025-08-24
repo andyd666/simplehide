@@ -5,17 +5,6 @@
 //#include <stdint.h>
 
 
-#ifndef DEBUG
-#define DEBUG false
-#endif
-
-#if DEBUG == true
-#define trace() std::cout << __LINE__ << " " << __func__  << " trace"<< std::endl
-#else
-#define trace() do {} while (0)
-#endif
-
-
 typedef enum {
     STEGAHIDE_UNKNOWN_STATUS   = -2,
     STEGAHIDE_CONTINUE         = -1,
@@ -31,8 +20,10 @@ typedef enum {
     STEGAHIDE_SIZE_EMBED_ERROR =  9,
 } StegahideStatus;
 
+void set_embedding_verbose_level(int level);
+
 // Embedding data:
-size_t embed_hidden_data_size(uint8_t *data, size_t dataSize, size_t hiddenDataSize);
+StegahideStatus embed_hidden_data_size(uint8_t *data, size_t *sizePosition, size_t dataSize, size_t hiddenDataSize);
 
 
 #endif // __STEGAHIDE_H__

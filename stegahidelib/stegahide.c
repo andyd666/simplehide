@@ -6,8 +6,10 @@
 
 #define BITS_SIZE_T (sizeof(size_t) * 8)
 
-#define ENABLE_DEBUG 1
-
+static int embeddingVerboseLevel = 0;
+void set_embedding_verbose_level(int level) {
+    embeddingVerboseLevel = level;
+}
 
 
 // Embedding data:
@@ -15,34 +17,67 @@ static size_t find_hidden_data_size_position(uint8_t *data, size_t dataSize, uin
 static size_t get_correct_data_bits_in_sequence(uint8_t data[BITS_SIZE_T], uint8_t hiddenDataSize[BITS_SIZE_T]);
 
 
-size_t embed_hidden_data_size(uint8_t *data, size_t dataSize, size_t hiddenDataSize) {
+StegahideStatus embed_hidden_data_size(uint8_t *data, size_t *sizePosition, size_t dataSize, size_t hiddenDataSize) {
+    uint8_t hiddenDataSizeBytes[BITS_SIZE_T];
+    uint8_t verboseDataSizeBytesBefore[BITS_SIZE_T];
+    uint8_t verboseDataSizeBytesAfter[BITS_SIZE_T];
+    uint8_t verboseDataPositionBytesBefore[BITS_SIZE_T];
+    uint8_t verboseDataPositionBytesAfter[BITS_SIZE_T];
+
     if (data == NULL || dataSize < BITS_SIZE_T || hiddenDataSize == 0) {
         return STEGAHIDE_INVALID_DATA;
     }
 
-    uint8_t hiddenDataSizeBytes[BITS_SIZE_T];
-
     for (size_t i = 0; i < BITS_SIZE_T; i++) {
-        hiddenDataSizeBytes[i] = (hiddenDataSize >> i) & 0x01; // Extract each bit
+        hiddenDataSizeBytes[i] = (hiddenDataSize >> i) & 0x01;
     }
 
-    size_t position = find_hidden_data_size_position(data, dataSize, hiddenDataSizeBytes);
-    if (position + BITS_SIZE_T > dataSize) {
+    if (embeddingVerboseLevel >= 2) {
+        printf("Embedding hidden data size bits: ");
+        for (size_t i = BITS_SIZE_T - 1; i < BITS_SIZE_T; i--) {
+            printf("%d", hiddenDataSizeBytes[i]);
+        }
+        printf("\n");
+    }
+
+    *sizePosition = find_hidden_data_size_position(data, dataSize, hiddenDataSizeBytes);
+    if (*sizePosition + BITS_SIZE_T > dataSize) {
+        printf("Data size %ld, sizePosition %ld is out of bounds\n", dataSize, *sizePosition);
         return STEGAHIDE_SIZE_EMBED_ERROR;
     }
 
-    if (ENABLE_DEBUG) {
-        printf("Found best hidden data size position: %ld\n", position);
+    if (embeddingVerboseLevel >= 1) {
+        printf("Found best hidden data size sizePosition: %ld\n", *sizePosition);
+    }
+
+    if (embeddingVerboseLevel >= 3) {
+        memcpy(verboseDataSizeBytesBefore, &data[*sizePosition], BITS_SIZE_T);
+        memcpy(verboseDataPositionBytesBefore, &data[0], BITS_SIZE_T);
     }
 
     for (size_t i = 0; i < BITS_SIZE_T; i++) {
-        data[position + i] = (data[position + i] & ~0x01) | (hiddenDataSizeBytes[i] & 0x01);
-        data[i] = (data[i] & ~0x01) | ((position >> i) & 0x01);
+        data[*sizePosition + i] = (data[*sizePosition + i] & ~0x01) | (hiddenDataSizeBytes[i] & 0x01);
+        data[i] = (data[i] & ~0x01) | ((*sizePosition >> i) & 0x01);
     }
 
+    if (embeddingVerboseLevel >= 3) {
+        printf("Size embedding result:\n");
+        memcpy(verboseDataSizeBytesAfter, &data[*sizePosition], BITS_SIZE_T);
+        memcpy(verboseDataPositionBytesAfter, &data[0], BITS_SIZE_T);
+        for (size_t i = 0; i < BITS_SIZE_T; i++) {
+            printf("[%2ld]: 0x%02x -> 0x%02x (%d)            [%10ld]: 0x%02x -> 0x%02x (%d)\n",
+                    i,
+                    verboseDataSizeBytesBefore[i],
+                    verboseDataSizeBytesAfter[i],
+                    hiddenDataSizeBytes[i],
+                    *sizePosition + i,
+                    verboseDataPositionBytesBefore[i],
+                    verboseDataPositionBytesAfter[i],
+                    (uint8_t)((*sizePosition >> i) & 0x01));
+        }
+    }
 
-
-    return position;
+    return STEGAHIDE_SUCCESS;
 }
 
 
@@ -53,16 +88,16 @@ static size_t find_hidden_data_size_position(uint8_t *data, size_t dataSize, uin
     for (size_t i = BITS_SIZE_T; i < dataSize - BITS_SIZE_T; i++) {
         size_t correctBits = get_correct_data_bits_in_sequence(&data[i], hiddenDataSize);
         if (correctBits == BITS_SIZE_T) {
-            if (ENABLE_DEBUG) {
-                printf("New Correct bits position: %ld\n", i);
+            if (embeddingVerboseLevel >= 3) {
+                printf("New Correct bits sizePosition: %ld\n", i);
                 printf("New Correct bits:          %ld\n", correctBits);
             }
             return i;
-        } else if (correctBits > currentHiddenDataSizeBits) {
+        } else if (correctBits >= currentHiddenDataSizeBits) { // Take the furthest best match
             currentHiddenDataSizeBits = correctBits;
             currentHiddenDataSizePosition = i;
-            if (ENABLE_DEBUG) {
-                printf("New Correct bits position: %ld\n", currentHiddenDataSizePosition);
+            if (embeddingVerboseLevel >= 3) {
+                printf("New Correct bits sizePosition: %ld\n", currentHiddenDataSizePosition);
                 printf("New Correct bits:          %ld\n", correctBits);
             }
         }
