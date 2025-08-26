@@ -20,7 +20,7 @@ int main() {
     uint8_t *hiddenData = NULL;
     uint8_t *hiddenMaskedData = NULL;
 
-    size_t hiddenDataSizePosition;
+    size_t hiddenDataSizeLocation;
     char *hiddenDataSizeBits = NULL;
     char *byteBits = NULL;
 
@@ -28,7 +28,9 @@ int main() {
 
     printf("Running test for stegohide-lib\n");
 
-    set_embedding_verbose_level(4);
+
+    set_hide_verbose_level(3);
+    set_extract_verbose_level(3);
 
     printf("Allocating rawData.\n\tFile:   %ld bytes\n\tHidden: %ld bytes\n", fileDataSize, hiddenRawDataSize);
     fileData = malloc(fileDataSize);
@@ -58,7 +60,7 @@ int main() {
         hiddenData[i] = rand();
     }
 
-    embed_hidden_data_size(fileData, &hiddenDataSizePosition, fileDataSize, hiddenRawDataSize);
+    embed_hidden_data_size(fileData, &hiddenDataSizeLocation, fileDataSize, hiddenRawDataSize);
 
     get_hidden_data_masked_size(mask, hiddenRawDataSize, &hiddenMaskedDataSize);
 
@@ -69,6 +71,16 @@ int main() {
     }
 
     generate_masked_hidden_data(hiddenData, hiddenRawDataSize, hiddenMaskedData, hiddenMaskedDataSize, mask);
+
+    hide_data(fileData, fileDataSize, hiddenMaskedData, hiddenMaskedDataSize, mask, hiddenDataSizeLocation);
+
+    // Save file here...
+
+    size_t extractedHiddenDataSizeLocation = extract_hidden_data_size_location(fileData, fileDataSize);
+    size_t extractedHiddenDataSize = extract_hidden_data_size(fileData, fileDataSize, extractedHiddenDataSizeLocation);
+
+    printf("Extracted hidden data size location: %ld, expected: %ld\n", extractedHiddenDataSizeLocation, hiddenDataSizeLocation);
+    printf("Extracted hidden data size: %ld, expected: %ld\n", extractedHiddenDataSize, hiddenRawDataSize);
 
 teardown:
     if (fileData)

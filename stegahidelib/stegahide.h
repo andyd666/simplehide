@@ -30,11 +30,23 @@ typedef enum {
     STEGAHIDE_MASK_TYPE_COMPLEX         = 3, // e.g. every else that is allowed
 } StegahideMaskType;
 
-void set_embedding_verbose_level(int level);
+void set_hide_verbose_level(int level);
+void set_extract_verbose_level(int level);
 
-// Embedding rawData:
+// Hiding hidden data:
 StegahideStatus embed_hidden_data_size(uint8_t *rawData, size_t *sizePosition, size_t rawDataSize, size_t hiddenRawDataSize);
 StegahideStatus get_hidden_data_masked_size(uint8_t mask, size_t hiddenRawDataSize, size_t *maskedHiddenDataSize);
+StegahideStatus hide_data(uint8_t *rawData,
+                          size_t rawDataSize,
+                          uint8_t *hiddenMaskedData,
+                          size_t hiddenMaskedDataSize,
+                          uint8_t mask,
+                          size_t dataSizeLocation);
+
+
+// Extracting hidden data:
+size_t extract_hidden_data_size_location(uint8_t *rawData, size_t rawDataSize);
+size_t extract_hidden_data_size(uint8_t *rawData, size_t rawDataSize, size_t hiddenDataSizeLocation);
 
 
 #endif // __STEGAHIDE_H__
