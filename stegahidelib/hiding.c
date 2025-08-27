@@ -1,56 +1,51 @@
+// TODO: add license
+
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include "stegahide.h"
 
-#define BITS_SIZE_T (sizeof(size_t) * 8)
 
 static int hideVerboseLevel = 0;
 void set_hide_verbose_level(int level) {
     hideVerboseLevel = level;
 }
 
-static int extractVerboseLevel = 0;
-void set_extract_verbose_level(int level) {
-    extractVerboseLevel = level;
-}
 
-
-// Hiding hidden data:
-static size_t find_hidden_data_size_position(uint8_t *rawData, size_t rawDataSize, uint8_t hiddenRawDataSize[BITS_SIZE_T]);
-static size_t get_correct_data_bits_in_sequence(uint8_t rawData[BITS_SIZE_T], uint8_t hiddenRawDataSize[BITS_SIZE_T]);
+static uint64_t find_hidden_data_size_position(uint8_t *rawData, uint64_t rawDataSize, uint8_t hiddenRawDataSize[BITS_uint64_t]);
+static uint64_t get_correct_data_bits_in_sequence(uint8_t rawData[BITS_uint64_t], uint8_t hiddenRawDataSize[BITS_uint64_t]);
 
 static int get_bits_in_mask(uint8_t mask);
 static StegahideMaskType get_mask_type(uint8_t mask);
 static uint8_t complex_remask_byte(uint8_t inputByte, uint8_t mask);
 
 
-StegahideStatus embed_hidden_data_size(uint8_t *rawData, size_t *sizePosition, size_t rawDataSize, size_t hiddenRawDataSize) {
-    uint8_t hiddenDataSizeBytes[BITS_SIZE_T];
-    uint8_t verboseDataSizeBytesBefore[BITS_SIZE_T];
-    uint8_t verboseDataSizeBytesAfter[BITS_SIZE_T];
-    uint8_t verboseDataPositionBytesBefore[BITS_SIZE_T];
-    uint8_t verboseDataPositionBytesAfter[BITS_SIZE_T];
+StegahideStatus embed_hidden_data_size(uint8_t *rawData, uint64_t *sizePosition, uint64_t rawDataSize, uint64_t hiddenRawDataSize) {
+    uint8_t hiddenDataSizeBytes[BITS_uint64_t];
+    uint8_t verboseDataSizeBytesBefore[BITS_uint64_t];
+    uint8_t verboseDataSizeBytesAfter[BITS_uint64_t];
+    uint8_t verboseDataPositionBytesBefore[BITS_uint64_t];
+    uint8_t verboseDataPositionBytesAfter[BITS_uint64_t];
 
-    if (rawData == NULL || rawDataSize < BITS_SIZE_T || hiddenRawDataSize == 0) {
+    if (rawData == NULL || rawDataSize < BITS_uint64_t || hiddenRawDataSize == 0) {
         return STEGAHIDE_INVALID_DATA;
     }
 
-    for (size_t i = 0; i < BITS_SIZE_T; i++) {
+    for (uint64_t i = 0; i < BITS_uint64_t; i++) {
         hiddenDataSizeBytes[i] = (hiddenRawDataSize >> i) & 0x01;
     }
 
     if (hideVerboseLevel >= 2) {
         printf("Embedding hidden rawData size bits: ");
-        for (size_t i = BITS_SIZE_T - 1; i < BITS_SIZE_T; i--) {
+        for (uint64_t i = BITS_uint64_t - 1; i < BITS_uint64_t; i--) {
             printf("%d", hiddenDataSizeBytes[i]);
         }
         printf("\n");
     }
 
     *sizePosition = find_hidden_data_size_position(rawData, rawDataSize, hiddenDataSizeBytes);
-    if (*sizePosition + BITS_SIZE_T > rawDataSize) {
+    if (*sizePosition + BITS_uint64_t > rawDataSize) {
         printf("Data size %ld, sizePosition %ld is out of bounds\n", rawDataSize, *sizePosition);
         return STEGAHIDE_SIZE_EMBED_ERROR;
     }
@@ -60,20 +55,20 @@ StegahideStatus embed_hidden_data_size(uint8_t *rawData, size_t *sizePosition, s
     }
 
     if (hideVerboseLevel >= 3) {
-        memcpy(verboseDataSizeBytesBefore, &rawData[*sizePosition], BITS_SIZE_T);
-        memcpy(verboseDataPositionBytesBefore, &rawData[0], BITS_SIZE_T);
+        memcpy(verboseDataSizeBytesBefore, &rawData[*sizePosition], BITS_uint64_t);
+        memcpy(verboseDataPositionBytesBefore, &rawData[0], BITS_uint64_t);
     }
 
-    for (size_t i = 0; i < BITS_SIZE_T; i++) {
+    for (uint64_t i = 0; i < BITS_uint64_t; i++) {
         rawData[*sizePosition + i] = (rawData[*sizePosition + i] & ~0x01) | (hiddenDataSizeBytes[i] & 0x01);
         rawData[i] = (rawData[i] & ~0x01) | ((*sizePosition >> i) & 0x01);
     }
 
     if (hideVerboseLevel >= 3) {
         printf("Size embedding result:\n");
-        memcpy(verboseDataSizeBytesAfter, &rawData[*sizePosition], BITS_SIZE_T);
-        memcpy(verboseDataPositionBytesAfter, &rawData[0], BITS_SIZE_T);
-        for (size_t i = 0; i < BITS_SIZE_T; i++) {
+        memcpy(verboseDataSizeBytesAfter, &rawData[*sizePosition], BITS_uint64_t);
+        memcpy(verboseDataPositionBytesAfter, &rawData[0], BITS_uint64_t);
+        for (uint64_t i = 0; i < BITS_uint64_t; i++) {
             printf("[%10ld]: 0x%02x -> 0x%02x (%d)            [%2ld]: 0x%02x -> 0x%02x (%d)\n",
                     *sizePosition + i,
                     verboseDataSizeBytesBefore[i],
@@ -90,14 +85,14 @@ StegahideStatus embed_hidden_data_size(uint8_t *rawData, size_t *sizePosition, s
 }
 
 
-static size_t find_hidden_data_size_position(uint8_t *rawData, size_t rawDataSize, uint8_t hiddenRawDataSize[BITS_SIZE_T]) {
-    size_t currentHiddenDataSizePosition = BITS_SIZE_T; // cannot start at 0
-    size_t currentHiddenDataSizeBits = 0;
+static uint64_t find_hidden_data_size_position(uint8_t *rawData, uint64_t rawDataSize, uint8_t hiddenRawDataSize[BITS_uint64_t]) {
+    uint64_t currentHiddenDataSizePosition = BITS_uint64_t; // cannot start at 0
+    uint64_t currentHiddenDataSizeBits = 0;
 
     // TODO: use pthread to increase search speed
-    for (size_t i = BITS_SIZE_T; i < rawDataSize - BITS_SIZE_T; i++) {
-        size_t correctBits = get_correct_data_bits_in_sequence(&rawData[i], hiddenRawDataSize);
-        if (correctBits == BITS_SIZE_T) {
+    for (uint64_t i = BITS_uint64_t; i < rawDataSize - BITS_uint64_t; i++) {
+        uint64_t correctBits = get_correct_data_bits_in_sequence(&rawData[i], hiddenRawDataSize);
+        if (correctBits == BITS_uint64_t) {
             if (hideVerboseLevel >= 3) {
                 printf("New Correct bits sizePosition: %ld\n", i);
                 printf("New Correct bits:          %ld\n", correctBits);
@@ -116,9 +111,9 @@ static size_t find_hidden_data_size_position(uint8_t *rawData, size_t rawDataSiz
 }
 
 
-static size_t get_correct_data_bits_in_sequence(uint8_t rawData[BITS_SIZE_T], uint8_t hiddenRawDataSize[BITS_SIZE_T]) {
-    size_t correctBits = 0;
-    for (size_t i = 0; i < BITS_SIZE_T; i++) {
+static uint64_t get_correct_data_bits_in_sequence(uint8_t rawData[BITS_uint64_t], uint8_t hiddenRawDataSize[BITS_uint64_t]) {
+    uint64_t correctBits = 0;
+    for (uint64_t i = 0; i < BITS_uint64_t; i++) {
         if ((rawData[i] & 0x01) == (hiddenRawDataSize[i] & 0x01)) {
             correctBits++;
         }
@@ -127,7 +122,21 @@ static size_t get_correct_data_bits_in_sequence(uint8_t rawData[BITS_SIZE_T], ui
 }
 
 
-StegahideStatus get_hidden_data_masked_size(uint8_t mask, size_t hiddenRawDataSize, size_t *maskedHiddenDataSize) {
+StegahideStatus hide_mask(uint8_t *rawData, uint8_t mask) {
+    if (!rawData) {
+        printf("Error: rawData is NULL\n");
+        return STEGAHIDE_INVALID_DATA;
+    }
+
+    for (uint64_t i = 0; i < 8; i++) {
+        rawData[i + BITS_uint64_t - 8] = (rawData[i + BITS_uint64_t - 8] & ~0x01) | ((mask >> i) & 0x01);
+    }
+
+    return STEGAHIDE_SUCCESS;
+}
+
+
+StegahideStatus get_hidden_data_masked_size(uint8_t mask, uint64_t hiddenRawDataSize, uint64_t *maskedHiddenDataSize) {
     int bitsInMask;
 
     if (mask == 0) {
@@ -182,16 +191,16 @@ static int get_bits_in_mask(uint8_t mask) {
 }
 
 
-StegahideStatus generate_masked_hidden_data(uint8_t *hiddenRawData, size_t hiddenRawDataSize, uint8_t *hiddenMaskedData, size_t hiddenMaskedDataSize, uint8_t mask) {
+StegahideStatus generate_masked_hidden_data(uint8_t *hiddenRawData, uint64_t hiddenRawDataSize, uint8_t *hiddenMaskedData, uint64_t hiddenMaskedDataSize, uint8_t mask) {
     StegahideMaskType maskType;
     int shiftSize = 1;
-    size_t split;
+    uint64_t split;
 
     if (!hiddenRawData || !hiddenMaskedData || !get_bits_in_mask(mask)) {
         printf("Error: Invalid input data\n");
         if (hideVerboseLevel >= 1) {
-            printf("Raw hidden data:    0x%08lX\n", (size_t)hiddenRawData);
-            printf("Masked hidden data: 0x%08lX\n", (size_t)hiddenMaskedData);
+            printf("Raw hidden data:    0x%08lX\n", (uint64_t)hiddenRawData);
+            printf("Masked hidden data: 0x%08lX\n", (uint64_t)hiddenMaskedData);
             printf("Mask:               0x%02X\n", mask);
         }
         return STEGAHIDE_INVALID_DATA;
@@ -213,8 +222,8 @@ StegahideStatus generate_masked_hidden_data(uint8_t *hiddenRawData, size_t hidde
     }
 
     // TODO: use pthread to increase splitting speed
-    for (size_t i = 0; i < hiddenRawDataSize; i++) {
-        for (size_t j = split - 1; j < split; j--) {
+    for (uint64_t i = 0; i < hiddenRawDataSize; i++) {
+        for (uint64_t j = split - 1; j < split; j--) {
             hiddenMaskedData[i * split + j] = (hiddenRawData[i] >> (8 / split * j)) & (0xFF >> (8 - 8 / split));
             if (hideVerboseLevel >= 4) {
                 if (j == split - 1) {
@@ -231,7 +240,7 @@ StegahideStatus generate_masked_hidden_data(uint8_t *hiddenRawData, size_t hidde
         }
         if (hideVerboseLevel >= 4) {
             printf("-> ");
-            for (size_t j = split - 1; j < split; j--) {
+            for (uint64_t j = split - 1; j < split; j--) {
                 printf("%02x ", hiddenMaskedData[i * split + j]);
             }
             printf("\n");
@@ -305,25 +314,25 @@ static uint8_t complex_remask_byte(uint8_t inputByte, uint8_t mask) {
 
 
 StegahideStatus hide_data(uint8_t *rawData,
-                          size_t rawDataSize,
+                          uint64_t rawDataSize,
                           uint8_t *hiddenMaskedData,
-                          size_t hiddenMaskedDataSize,
+                          uint64_t hiddenMaskedDataSize,
                           uint8_t mask,
-                          size_t dataSizeLocation)
+                          uint64_t dataSizeLocation)
 {
-    size_t stepSize;
+    uint64_t stepSize;
     // data sizes and dataSizeLocation must be verified by user of this function
     if (!rawData || !hiddenMaskedData) {
-        printf("rawData          = 0x%08lX\n", (size_t)rawData);
-        printf("hiddenMaskedData = 0x%08lX\n", (size_t)hiddenMaskedData);
+        printf("rawData          = 0x%08lX\n", (uint64_t)rawData);
+        printf("hiddenMaskedData = 0x%08lX\n", (uint64_t)hiddenMaskedData);
         return STEGAHIDE_INVALID_DATA;
     }
 
     // Skip data size position
-    rawData += BITS_SIZE_T;
-    rawDataSize -= BITS_SIZE_T;
+    rawData += BITS_uint64_t;
+    rawDataSize -= BITS_uint64_t;
 
-    stepSize = (rawDataSize - BITS_SIZE_T) / (hiddenMaskedDataSize + 1);
+    stepSize = (rawDataSize - BITS_uint64_t) / (hiddenMaskedDataSize + 1);
     if (stepSize == 0) {
         printf("Error: Invalid step size\n");
         return STEGAHIDE_INVALID_DATA;
@@ -337,12 +346,12 @@ StegahideStatus hide_data(uint8_t *rawData,
     }
 
     // TODO: use pthread to increase hiding speeds
-    for (size_t i = 0; i < hiddenMaskedDataSize; i++) {
-        size_t currentPosition = (i + 1) * stepSize;
-        currentPosition = (currentPosition >= dataSizeLocation) ? currentPosition + BITS_SIZE_T : currentPosition;
+    for (uint64_t i = 0; i < hiddenMaskedDataSize; i++) {
+        uint64_t currentPosition = (i + 1) * stepSize;
+        currentPosition = (currentPosition >= dataSizeLocation) ? currentPosition + BITS_uint64_t : currentPosition;
 
         if (hideVerboseLevel >= 4) {
-            printf("Raw data [%ld]: 0x%02x x 0x%02x -> ", currentPosition + BITS_SIZE_T, rawData[currentPosition], hiddenMaskedData[i]);
+            printf("Raw data [%ld]: 0x%02x x 0x%02x -> ", currentPosition + BITS_uint64_t, rawData[currentPosition], hiddenMaskedData[i]);
         }
 
         rawData[currentPosition] &= ~mask;
@@ -354,63 +363,4 @@ StegahideStatus hide_data(uint8_t *rawData,
     }
 
     return STEGAHIDE_SUCCESS;
-}
-
-
-// Extracting hidden data:
-
-
-size_t extract_hidden_data_size_location(uint8_t *rawData, size_t rawDataSize) {
-    size_t hiddenDataSizeLocation = 0;
-
-    if (!rawData || rawDataSize < BITS_SIZE_T) {
-        printf("rawData is NULL or too small\n");
-        return 0;
-    }
-
-    for (size_t i = 0; i < BITS_SIZE_T; i++) {
-        hiddenDataSizeLocation |= (rawData[i] & 0x01) << i;
-        if (extractVerboseLevel >= 3) {
-            printf("Raw data [%ld]: 0x%02x\n", i, rawData[i]);
-        }
-    }
-
-    if (extractVerboseLevel >= 1) {
-        printf("Extracted hidden data size location: %ld\n", hiddenDataSizeLocation);
-    }
-
-    return hiddenDataSizeLocation;
-}
-
-
-size_t extract_hidden_data_size(uint8_t *rawData, size_t rawDataSize, size_t hiddenDataSizeLocation) {
-    size_t hiddenDataSize = 0;
-
-    if (!rawData || rawDataSize < BITS_SIZE_T) {
-        printf("rawData is NULL or too small\n");
-        return 0;
-    }
-
-    if ((hiddenDataSizeLocation > rawDataSize) || (hiddenDataSizeLocation < BITS_SIZE_T)) {
-        printf("Error: hiddenDataSizeLocation %ld is out of bounds (rawDataSize %ld)\n", hiddenDataSizeLocation, rawDataSize);
-        return 0;
-    }
-
-    for (size_t i = 0; i < BITS_SIZE_T; i++) {
-        hiddenDataSize |= (rawData[hiddenDataSizeLocation + i] & 0x01) << i;
-        if (extractVerboseLevel >= 3) {
-            printf("Raw data [%ld]: 0x%02x\n", hiddenDataSizeLocation + i, rawData[hiddenDataSizeLocation + i]);
-        }
-    }
-
-    if (hideVerboseLevel >= 1) {
-        printf("Extracted hidden data size: %ld\n", hiddenDataSize);
-    }
-
-    if (hiddenDataSize > rawDataSize - BITS_SIZE_T * 2) {
-        printf("Error, hidden data size is out of bounds: %ld > %ld\n", hiddenDataSize, rawDataSize - BITS_SIZE_T * 2);
-        return 0;
-    }
-
-    return hiddenDataSize;
 }

@@ -1,8 +1,12 @@
+// TODO: add license
+
 #ifndef __STEGAHIDE_H__
 #define __STEGAHIDE_H__
 
 //#include <string>
 //#include <stdint.h>
+
+#define BITS_uint64_t (sizeof(uint64_t) * 8)
 
 
 typedef enum {
@@ -34,19 +38,21 @@ void set_hide_verbose_level(int level);
 void set_extract_verbose_level(int level);
 
 // Hiding hidden data:
-StegahideStatus embed_hidden_data_size(uint8_t *rawData, size_t *sizePosition, size_t rawDataSize, size_t hiddenRawDataSize);
-StegahideStatus get_hidden_data_masked_size(uint8_t mask, size_t hiddenRawDataSize, size_t *maskedHiddenDataSize);
+StegahideStatus embed_hidden_data_size(uint8_t *rawData, uint64_t *sizePosition, uint64_t rawDataSize, uint64_t hiddenRawDataSize);
+StegahideStatus get_hidden_data_masked_size(uint8_t mask, uint64_t hiddenRawDataSize, uint64_t *maskedHiddenDataSize);
+StegahideStatus hide_mask(uint8_t *rawData, uint8_t mask);
 StegahideStatus hide_data(uint8_t *rawData,
-                          size_t rawDataSize,
+                          uint64_t rawDataSize,
                           uint8_t *hiddenMaskedData,
-                          size_t hiddenMaskedDataSize,
+                          uint64_t hiddenMaskedDataSize,
                           uint8_t mask,
-                          size_t dataSizeLocation);
+                          uint64_t dataSizeLocation);
 
 
 // Extracting hidden data:
-size_t extract_hidden_data_size_location(uint8_t *rawData, size_t rawDataSize);
-size_t extract_hidden_data_size(uint8_t *rawData, size_t rawDataSize, size_t hiddenDataSizeLocation);
+uint64_t extract_hidden_data_size_location(uint8_t *rawData, uint64_t rawDataSize);
+uint8_t extract_mask(uint8_t *rawData, uint64_t rawDataSize);
+uint64_t extract_hidden_data_size(uint8_t *rawData, uint64_t rawDataSize, uint64_t hiddenDataSizeLocation);
 
 
 #endif // __STEGAHIDE_H__
