@@ -37,6 +37,7 @@ static size_t get_correct_data_bits_in_sequence(const uint8_t rawData[BITS_SIZE_
 
 static int get_bits_in_mask(uint8_t mask);
 static uint8_t complex_hide_remask_byte(uint8_t inputByte, uint8_t mask);
+static uint8_t complex_hide_remask_byte_helper(uint8_t inputByte, uint8_t mask);
 
 
 StegahideStatus embed_hidden_data_size(uint8_t *rawData, size_t *sizePosition, size_t rawDataSize, size_t hiddenRawDataSize) {
@@ -331,7 +332,28 @@ StegahideMaskType get_mask_type(uint8_t mask) {
 
 
 static uint8_t complex_hide_remask_byte(uint8_t inputByte, uint8_t mask) {
-    // TODO: make this faster with a lookup table
+    static uint8_t lookupTableInitialized = 0;
+    static uint8_t lookupTable[256];
+
+    if (!lookupTableInitialized) {
+        int setBits = get_bits_in_mask(mask);
+        if (hideVerboseLevel >= 2) {
+            printf("Initializing complex remask lookup table for mask 0x%02X with %d bits set\n", mask, setBits);
+        }
+        for (int i = 0; i < (1 << setBits); i++) {
+            if (hideVerboseLevel >= 3) {
+                printf("Lookup table init [%3d]: 0x%02x -> 0x%02x\n", i, (uint8_t)i, complex_hide_remask_byte_helper((uint8_t)i, mask));
+            }
+            lookupTable[i] = complex_hide_remask_byte_helper((uint8_t)i, mask);
+        }
+        lookupTableInitialized = 1;
+    }
+
+    return lookupTable[inputByte];
+}
+
+
+static uint8_t complex_hide_remask_byte_helper(uint8_t inputByte, uint8_t mask) {
     uint8_t outputByte = 0;
     int inputBitIndex = 0;
     for (int i = 0; i < 8; i++) {

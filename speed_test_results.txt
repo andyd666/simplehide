@@ -13,7 +13,7 @@ Core(s) per socket:                      8
 Socket(s):                               1
 Stepping:                                0
 Frequency boost:                         enabled
-CPU(s) scaling MHz:                      74%
+CPU(s) scaling MHz:                      85%
 CPU max MHz:                             4546.0000
 CPU min MHz:                             400.0000
 BogoMIPS:                                3992.63
@@ -120,5 +120,5 @@ Memory Device
 
 Running speed 1000 times
 Using 1 threads
-Total run time: 63.181362 s
-Average run time: 0.063181 s
+Total run time: 62.817233 s
+Average run time: 0.062817 s
