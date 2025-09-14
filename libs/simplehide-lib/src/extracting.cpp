@@ -224,16 +224,14 @@ StegahideStatus extract_hidden_data(const uint8_t *rawData,
 
 
 static uint8_t complex_extract_remask_byte(uint8_t inputByte, uint8_t mask) {
-    uint8_t outputByte = 0;
-    int outputBitIndex = 0;
-    for (int i = 0; i < 8; i++) {
-        if (mask & (1 << i)) {
-            outputByte |= ((inputByte >> i) & 1) << outputBitIndex;
-            outputBitIndex++;
-        }
+    static uint8_t lookupTableInitialized = 0;
+    static uint8_t *lookupTableExtract = NULL;
+
+    if (!lookupTableInitialized) {
+        get_lookup_tables(mask, &lookupTableInitialized, NULL, &lookupTableExtract);
     }
 
-    return outputByte;
+    return lookupTableExtract[inputByte];
 }
 
 

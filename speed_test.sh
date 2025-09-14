@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# run this script:
+# sudo ./speed_test.sh | tee speed_test_results.txt ; sync
+
 EXECUTABLE=$(find . -name "run_test")
 
 PROGRAM_THREADS_MAX=$(nproc --all)
@@ -8,6 +11,9 @@ if [ -z "$EXECUTABLE" ]; then
     echo "Executable 'run_test' not found. Run 'make' first"
     exit 1
 fi
+
+VERBOSE=false
+HUMAN_READABLE=false
 
 for (( i=1; i<=$#; i++ ));
 do
@@ -42,10 +48,19 @@ do
             fi
         ;;
         -v)
-            VERBOSE=1
+            VERBOSE=true
         ;;
-        -vv)
-            VERBOSE=2
+        -r)
+            HUMAN_READABLE=true
+        ;;
+        *)
+            echo "Unknown argument: ${!i}"
+            echo "Usage: $0 [-j <threads>] [-t <repeats>] [-v] [-r]"
+            echo "  -j <threads>   Number of threads to use (default 1, max $PROGRAM_THREADS_MAX, 0 for all)"
+            echo "  -t <repeats>   Number of times to run the test (default 1000, 0 for infinite)"
+            echo "  -v             Verbose output"
+            echo "  -r             Human readable verbose output"
+            exit 22
         ;;
     esac
 done
@@ -85,9 +100,9 @@ while [ $RUN_NUMBER -le $REPEATS ]; do
 
     DIFF_TIME_S=$(printf "%d.%06d" $((DIFF_TIME_S/1000000)) $((DIFF_TIME_S%1000000)))
 
-    if [ "$VERBOSE" = "1" ]; then
+    if [ "$VERBOSE" = "true" ] && [ "$HUMAN_READABLE" = "false" ]; then
         echo "$RUN_NUMBER $DIFF_TIME_S"
-    elif [ "$VERBOSE" = "2" ]; then
+    elif [ "$VERBOSE" = "true" ] && [ "$HUMAN_READABLE" = "true" ]; then
         echo "Run #$RUN_NUMBER finished in $DIFF_TIME_S s"
     fi
     RUN_NUMBER=$((RUN_NUMBER+1))

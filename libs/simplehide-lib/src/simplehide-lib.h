@@ -66,6 +66,7 @@ StegahideStatus verify_mask(uint8_t mask, size_t hiddenRawDataSize, size_t *mask
 StegahideStatus generate_masked_hidden_data(const uint8_t *hiddenRawData, size_t hiddenRawDataSize, uint8_t *hiddenMaskedData, size_t hiddenMaskedDataSize, uint8_t mask);
 int get_uniform_mask_shift(uint8_t mask);
 StegahideMaskType get_mask_type(uint8_t mask);
+void get_lookup_tables(uint8_t mask, uint8_t *lookupTableInitialized__, uint8_t **lookupTableHide__, uint8_t **lookupTableExtract__);
 StegahideStatus hide_mask(uint8_t *rawData, uint8_t mask);
 StegahideStatus hide_data(uint8_t *rawData,
                           size_t rawDataSize,

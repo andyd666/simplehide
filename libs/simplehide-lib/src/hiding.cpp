@@ -35,9 +35,8 @@ void set_hide_verbose_level(int level) {
 
 static size_t get_correct_data_bits_in_sequence(const uint8_t rawData[BITS_SIZE_T], size_t rawDataSize);
 
-static int get_bits_in_mask(uint8_t mask);
+static uint8_t lookup_table_generator(uint8_t inputByte, uint8_t mask);
 static uint8_t complex_hide_remask_byte(uint8_t inputByte, uint8_t mask);
-static uint8_t complex_hide_remask_byte_helper(uint8_t inputByte, uint8_t mask);
 
 
 StegahideStatus embed_hidden_data_size(uint8_t *rawData, size_t *sizePosition, size_t rawDataSize, size_t hiddenRawDataSize) {
@@ -169,7 +168,7 @@ StegahideStatus get_hidden_data_masked_size(uint8_t mask, size_t hiddenRawDataSi
     return SIMPLEHIDE_SUCCESS;
 }
 
-static int get_bits_in_mask(uint8_t mask) {
+int get_bits_in_mask(uint8_t mask) {
     int count = 0;
     for (int i = 0; i < 8; i++) {
         if (mask & (1 << i)) {
@@ -331,29 +330,37 @@ StegahideMaskType get_mask_type(uint8_t mask) {
 }
 
 
-static uint8_t complex_hide_remask_byte(uint8_t inputByte, uint8_t mask) {
-    static uint8_t lookupTableInitialized = 0;
-    static uint8_t lookupTable[256];
+static uint8_t lookupTableInitialized = 0;
+static uint8_t lookupTableHide[256] = {0};
+static uint8_t lookupTableExtract[256] = {0};
+
+void get_lookup_tables(uint8_t mask, uint8_t *lookupTableInitialized__, uint8_t **lookupTableHide__, uint8_t **lookupTableExtract__) {
+    if (lookupTableInitialized__) *lookupTableInitialized__ = lookupTableInitialized;
+    if (lookupTableHide__)        *lookupTableHide__        = lookupTableHide;
+    if (lookupTableExtract__)     *lookupTableExtract__     = lookupTableExtract;
 
     if (!lookupTableInitialized) {
         int setBits = get_bits_in_mask(mask);
         if (hideVerboseLevel >= 2) {
             printf("Initializing complex remask lookup table for mask 0x%02X with %d bits set\n", mask, setBits);
         }
+        if (hideVerboseLevel >= 3) {
+            printf("                   Hide index         Extract index\n");
+        }
+
         for (int i = 0; i < (1 << setBits); i++) {
             if (hideVerboseLevel >= 3) {
-                printf("Lookup table init [%3d]: 0x%02x -> 0x%02x\n", i, (uint8_t)i, complex_hide_remask_byte_helper((uint8_t)i, mask));
+                printf("Lookup table init: 0x%02x     <->     0x%02x\n", (uint8_t)i, lookup_table_generator((uint8_t)i, mask));
             }
-            lookupTable[i] = complex_hide_remask_byte_helper((uint8_t)i, mask);
+            lookupTableHide[i] = lookup_table_generator((uint8_t)i, mask);
+            lookupTableExtract[lookupTableHide[i]] = (uint8_t)i;
         }
         lookupTableInitialized = 1;
     }
-
-    return lookupTable[inputByte];
 }
 
 
-static uint8_t complex_hide_remask_byte_helper(uint8_t inputByte, uint8_t mask) {
+static uint8_t lookup_table_generator(uint8_t inputByte, uint8_t mask) {
     uint8_t outputByte = 0;
     int inputBitIndex = 0;
     for (int i = 0; i < 8; i++) {
@@ -364,6 +371,18 @@ static uint8_t complex_hide_remask_byte_helper(uint8_t inputByte, uint8_t mask) 
     }
 
     return outputByte;
+}
+
+
+static uint8_t complex_hide_remask_byte(uint8_t inputByte, uint8_t mask) {
+    static uint8_t lookupTableInitialized = 0;
+    static uint8_t *lookupTableHide = NULL;
+
+    if (!lookupTableInitialized) {
+        get_lookup_tables(mask, &lookupTableInitialized, &lookupTableHide, NULL);
+    }
+
+    return lookupTableHide[inputByte];
 }
 
 
