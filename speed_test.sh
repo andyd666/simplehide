@@ -82,7 +82,7 @@ dmidecode --type 17
 echo "################################"
 echo ""
 echo ""
-echo "Running speed $REPEATS times"
+echo "Running speed test $REPEATS times"
 echo "Using $PROGRAM_THREADS threads"
 
 RUN_NUMBER=1

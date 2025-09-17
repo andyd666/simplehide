@@ -75,6 +75,7 @@ public:
     ~SimpleHide() {};
 
     void set_verbose_level(int level) { set_extract_verbose_level(level); set_hide_verbose_level(level); verboseOutput = (level > 0); }
+    void set_thread_num(int num) { set_extract_thread_number(num); set_hide_thread_number(num); }
 
     void parse_file_full_name(std::string inputFileFullName, FileInfo &fileInfo);
     static bool is_read_file_format(std::string format);

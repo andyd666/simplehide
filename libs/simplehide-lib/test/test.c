@@ -21,7 +21,11 @@ void sprintf_bits(char *bits, size_t num, size_t numBits);
 #define GB (1024 * MB)
 #define TB (1024 * GB)
 
-int main() {
+
+void parse_argv(int argc, char **argv, int *threads, int *verboseLevel);
+
+
+int main(int argc, char **argv) {
     size_t fileDataSize = 1 * MB; // Example size, adjust as needed
     size_t hiddenRawDataSize = 128 * KB;
     size_t hiddenMaskedDataSize;
@@ -36,11 +40,19 @@ int main() {
 
     uint8_t mask = 0x1B;
 
+    int threads = 1;
+    int verboseLevel = 0;
+
+    parse_argv(argc, argv, &threads, &verboseLevel);
+
     printf("Running test for simplehide-lib\n");
 
 
-    set_hide_verbose_level(0);
-    set_extract_verbose_level(0);
+    set_hide_verbose_level(verboseLevel);
+    set_extract_verbose_level(verboseLevel);
+
+    set_hide_thread_number(threads);
+    set_extract_thread_number(threads);
 
 
     printf("Allocating rawData.\n\tFile:   %ld bytes\n\tHidden: %ld bytes\n", fileDataSize, hiddenRawDataSize);
@@ -153,5 +165,26 @@ void get_size_in_bits(char *sizeBits, size_t size) {
 void sprintf_bits(char *bits, size_t num, size_t numBits) {
     for (size_t i = 0; i < numBits; i++) {
         bits[numBits - i - 1] = ((num >> i) & 0x01) ? '1' : '0';
+    }
+}
+
+
+void parse_argv(int argc, char **argv, int *threads, int *verboseLevel) {
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "-j") == 0) {
+            i++;
+            if (i < argc) {
+                *threads = atoi(argv[i]);
+            } else {
+                *threads = 1;
+            }
+        } else if (strcmp(argv[i], "-V") == 0) {
+            i++;
+            if (i < argc) {
+                *verboseLevel = atoi(argv[i]);
+            } else {
+                *verboseLevel = 0;
+            }
+        }
     }
 }

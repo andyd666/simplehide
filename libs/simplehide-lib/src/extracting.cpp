@@ -29,8 +29,23 @@ freely, subject to the following restrictions:
 
 
 static int extractVerboseLevel = 0;
+static int extractingThreadNumber = 1;
+
 void set_extract_verbose_level(int level) {
     extractVerboseLevel = level;
+}
+
+void set_extract_thread_number(int num) {
+    if (num < 1) {
+        printf("Extract Thread number cannot be set to %d\n", num);
+        return;
+    }
+
+    if (extractVerboseLevel >= 1) {
+        printf("Setting extract threads to %d\n", num);
+    }
+
+    extractingThreadNumber = num;
 }
 
 
@@ -184,6 +199,7 @@ StegahideStatus extract_hidden_data(const uint8_t *rawData,
         return SIMPLEHIDE_SUCCESS;
     }
 
+    // TODO: use pthread
     if (maskType == SIMPLEHIDE_MASK_TYPE_SHIFTED_UNIFORM) {
         for (size_t i = 0; i < hiddenMaskedDataSize; i++) {
             uint8_t maskedByteBefore = hiddenMaskedData[i];

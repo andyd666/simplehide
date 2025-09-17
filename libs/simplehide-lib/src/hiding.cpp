@@ -24,15 +24,32 @@ freely, subject to the following restrictions:
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <pthread.h>
 #include "simplehide-lib.h"
 
 
 static int hideVerboseLevel = 0;
+static int hidingThreadNumber = 1;
+
 void set_hide_verbose_level(int level) {
     hideVerboseLevel = level;
 }
 
+void set_hide_thread_number(int num) {
+    if (num < 1) {
+        printf("Hide Thread number cannot be set to %d\n", num);
+        return;
+    }
 
+    if (hideVerboseLevel >= 1) {
+        printf("Setting hiding threads to %d\n", num);
+    }
+
+    hidingThreadNumber = num;
+}
+
+
+static void *find_hidden_data_size_position_thread(void *data__);
 static size_t get_correct_data_bits_in_sequence(const uint8_t rawData[BITS_SIZE_T], size_t rawDataSize);
 
 static uint8_t lookup_table_generator(uint8_t inputByte, uint8_t mask);
@@ -101,26 +118,98 @@ StegahideStatus embed_hidden_data_size(uint8_t *rawData, size_t *sizePosition, s
 size_t find_hidden_data_size_position(const uint8_t *rawData, size_t rawDataSize, size_t hiddenRawDataSize) {
     size_t currentHiddenDataSizePosition = BITS_SIZE_T; // cannot start at 0
     size_t currentHiddenDataSizeBits = 0;
+    pthread_t *threadVector = (pthread_t *)malloc(sizeof(pthread_t) * hidingThreadNumber);
+    HideDataSizeThreadData *data = (HideDataSizeThreadData *)malloc(sizeof(HideDataSizeThreadData) * hidingThreadNumber);
 
-    // TODO: use pthread to increase search speed  ->  https://github.com/andyd666/simplehide/issues/4
-    for (size_t i = BITS_SIZE_T; i < rawDataSize - BITS_SIZE_T; i++) {
-        size_t correctBits = get_correct_data_bits_in_sequence(&rawData[i], hiddenRawDataSize);
-        if (correctBits == BITS_SIZE_T) {
-            if (hideVerboseLevel >= 3) {
+    if (threadVector == NULL || data == NULL) {
+        printf("Error: cannot allocate data:\n\tthreadVector = 0x%08lx\n\tdata         = 0x%08lx\n", (size_t)threadVector, (size_t)data);
+        if (data)
+            free(data);
+
+        if (threadVector)
+            free(threadVector);
+
+        return -1;
+    }
+
+    size_t totalBytes;
+    size_t bytesPerThread;
+    size_t bytesPerThreadRemainder;
+    size_t threadStartBytePosition;
+    size_t threadStopBytePosition;
+
+    totalBytes = rawDataSize - (2 * BITS_SIZE_T);
+    bytesPerThread = totalBytes / hidingThreadNumber;
+    bytesPerThreadRemainder = totalBytes % hidingThreadNumber;
+    threadStartBytePosition = BITS_SIZE_T;
+    threadStopBytePosition = threadStartBytePosition + bytesPerThread;
+
+    if (bytesPerThreadRemainder > 0) {
+        threadStopBytePosition += 1;
+        bytesPerThreadRemainder--;
+    }
+
+    for (int i = 0; i < hidingThreadNumber; i++) {
+        data[i].rawData = rawData;
+        data[i].hiddenRawDataSize = hiddenRawDataSize;
+        data[i].startPosition = threadStartBytePosition;
+        data[i].stopPosition = threadStopBytePosition;
+        data[i].correctBits = 0;
+        data[i].position = threadStartBytePosition;
+
+        pthread_create(&threadVector[i], NULL, &find_hidden_data_size_position_thread, (void *)(&data[i]));
+
+        threadStartBytePosition = threadStopBytePosition;
+        threadStopBytePosition += bytesPerThread;
+        if (bytesPerThreadRemainder > 0) {
+            threadStopBytePosition += 1;
+            bytesPerThreadRemainder--;
+        }
+    }
+
+    for (int i = 0; i < hidingThreadNumber; i++) {
+        pthread_join(threadVector[i], NULL);
+        if (hideVerboseLevel >= 3) {
+            printf("Thread %d found best match at %ld with %ld bits\n", i, data[i].position, data[i].correctBits);
+        }
+    }
+
+    for (int i = 0; i < hidingThreadNumber; i++) {
+        if (data[i].correctBits >= currentHiddenDataSizeBits) {
+            currentHiddenDataSizeBits = data[i].correctBits;
+            currentHiddenDataSizePosition = data[i].position;
+        }
+    }
+
+    free(data);
+    free(threadVector);
+
+    return currentHiddenDataSizePosition;
+}
+
+static void *find_hidden_data_size_position_thread(void *data__) {
+    HideDataSizeThreadData *data = (HideDataSizeThreadData *)(data__);
+    size_t currentHiddenDataSizePosition = data->startPosition;
+    size_t currentHiddenDataSizeBits = 0;
+    for (size_t i = data->startPosition; i < data->stopPosition; i++) {
+        data->correctBits = get_correct_data_bits_in_sequence(&data->rawData[i], data->hiddenRawDataSize);
+        if (data->correctBits == BITS_SIZE_T) {
+            if (hideVerboseLevel >= 3 && hidingThreadNumber == 1) {
                 printf("New Correct bits sizePosition: %ld\n", i);
-                printf("New Correct bits:          %ld\n", correctBits);
+                printf("New Correct bits:              %ld\n", data->correctBits);
             }
-            return i;
-        } else if (correctBits >= currentHiddenDataSizeBits) { // Take the furthest best match
-            currentHiddenDataSizeBits = correctBits;
+            break;
+        } else if (data->correctBits >= currentHiddenDataSizeBits) { // Take the furthest best match
+            currentHiddenDataSizeBits = data->correctBits;
             currentHiddenDataSizePosition = i;
-            if (hideVerboseLevel >= 3) {
+            if (hideVerboseLevel >= 3 && hidingThreadNumber == 1) {
                 printf("New Correct bits sizePosition: %ld\n", currentHiddenDataSizePosition);
-                printf("New Correct bits:          %ld\n", correctBits);
+                printf("New Correct bits:              %ld\n", data->correctBits);
             }
         }
     }
-    return currentHiddenDataSizePosition;
+    data->position = currentHiddenDataSizePosition;
+    return NULL;
 }
 
 

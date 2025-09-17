@@ -56,7 +56,9 @@ typedef enum {
 } StegahideMaskType;
 
 void set_hide_verbose_level(int level);
+void set_hide_thread_number(int num);
 void set_extract_verbose_level(int level);
+void set_extract_thread_number(int num);
 
 // Hiding hidden data:
 StegahideStatus embed_hidden_data_size(uint8_t *rawData, size_t *sizePosition, size_t rawDataSize, size_t hiddenRawDataSize);
@@ -87,6 +89,15 @@ StegahideStatus extract_hidden_data(const uint8_t *rawData,
                                     size_t hiddenMaskedDataSize,
                                     size_t hiddenDataSizePosition,
                                     uint8_t mask);
+
+typedef struct HideDataSizeThreadData {
+    const uint8_t *rawData;
+    size_t hiddenRawDataSize;
+    size_t startPosition;
+    size_t stopPosition;
+    size_t correctBits;
+    size_t position;
+} HideDataSizeThreadData;
 
 
 #endif // __SIMPLEHIDE_H__
