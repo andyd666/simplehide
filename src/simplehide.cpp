@@ -103,10 +103,7 @@ int main(int argc, const char *argv[]) {
                                             simpleHide.inputFileData.size(),
                                             simpleHide.secretFileData.size());
         } else {
-            // TODO: when --no-size is used - put hiddenDataSizePosition to some known value (more than file size, maybe ???)
-            simpleHide.hiddenDataSizePosition = find_hidden_data_size_position(simpleHide.inputFileData.data(),
-                                                                               simpleHide.inputFileData.size(),
-                                                                               simpleHide.secretFileData.size());
+            simpleHide.hiddenDataSizePosition = BITS_SIZE_T;
         }
 
         if ((status != SIMPLEHIDE_SUCCESS) || (simpleHide.hiddenDataSizePosition > simpleHide.inputFileData.size())) {
@@ -269,6 +266,15 @@ static int parse_args(int argc, const char *argv[]) {
         if ((strcmp(argv[i], "-V") == 0) || (strcmp(argv[i], "--verbose") == 0)) {
             i++;
             // already parsed
+        } else if (strcmp(argv[i], "-j") == 0) {
+            i++;
+            if (i < argc) {
+                simpleHide.set_thread_num(atoi(argv[i]));
+            } else {
+                std::cout << DEBUG_PRINT_LINE << "Error: No thread number specified. Using 1 thread" << std::endl;
+                simpleHide.set_thread_num(1);
+            }
+            TRACE();
         } else if ((strcmp(argv[i], "-i") == 0) || (strcmp(argv[i], "--input") == 0)) {
             i++;
             if (i < argc) {
@@ -348,6 +354,7 @@ static void usage() {
     std::cout << "    -v, --version            Show version information" << std::endl;
     std::cout << "    -V, --verbose            Enable verbose output with levels 0-4 (0 is default)." << std::endl;
     std::cout << "                             If this argument is last - level 1 will be chosen" << std::endl;
+    std::cout << "    -j                       Set thread number" << std::endl;
     std::cout << "    -e, --extract            Extract hidden data" << std::endl;
     std::cout << "    -i, --input              Input file" << std::endl;
     std::cout << "    -o, --output             Output file" << std::endl;

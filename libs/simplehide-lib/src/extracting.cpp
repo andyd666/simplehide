@@ -25,17 +25,35 @@ freely, subject to the following restrictions:
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <pthread.h>
 #include "simplehide-lib.h"
 
 
 static int extractVerboseLevel = 0;
+static int extractingThreadNumber = 1;
+
 void set_extract_verbose_level(int level) {
     extractVerboseLevel = level;
 }
 
+void set_extract_thread_number(int num) {
+    if (num < 1) {
+        printf("Extract Thread number cannot be set to %d\n", num);
+        return;
+    }
 
+    if (extractVerboseLevel >= 1) {
+        printf("Setting extract threads to %d\n", num);
+    }
+
+    extractingThreadNumber = num;
+}
+
+
+static void *extract_hidden_data_extract_masked_data_thread(void *data__);
+static void *extract_hidden_data_collect_hidden_bytes_thread(void *data__);
 static uint8_t complex_extract_remask_byte(uint8_t inputByte, uint8_t mask);
-static uint8_t collect_hidden_byte(uint8_t *bytes, int bitsInMask);
+static uint8_t collect_hidden_byte(const uint8_t *bytes, int bitsInMask);
 
 
 size_t extract_hidden_data_size_position(const uint8_t *rawData, size_t rawDataSize) {
@@ -128,19 +146,45 @@ StegahideStatus extract_hidden_data(const uint8_t *rawData,
     size_t stepSize;
     int uniformMaskShift = 0;
     int bitsInMask = 8 / (hiddenMaskedDataSize / hiddenDataSize);
+    pthread_t *threadVector = (pthread_t *)malloc(sizeof(pthread_t) * extractingThreadNumber);
+    void *threadData = malloc(sizeof(ExtractMaskedDataThreadData) * extractingThreadNumber);
+    uint8_t *hiddenData = NULL;
+    size_t totalBytes;
+    size_t bytesPerThread;
+    size_t bytesPerThreadRemainder;
+    size_t threadStartBytePosition;
+    size_t threadStopBytePosition;
+    int storedThreads = extractingThreadNumber;
+
+    if (threadVector == NULL || threadData == NULL) {
+        printf("Error: cannot allocate threadData:\n\tthreadVector = 0x%08lx\n\tdata         = 0x%08lx\n", (size_t)threadVector, (size_t)threadData);
+        if (threadData)
+            free(threadData);
+
+        if (threadVector)
+            free(threadVector);
+
+        return SIMPLEHIDE_MEMORY_ALLOCATION_ERROR;
+    }
 
     if (hiddenDataSize == 0) {
         printf("Error: hiddenDataSize is 0\n");
+        free(threadData);
+        free(threadVector);
         return SIMPLEHIDE_INVALID_DATA;
     }
 
     if (!rawData || !hiddenMaskedData)  {
         printf("Error: rawData or hiddenMaskedData is NULL\n");
+        free(threadData);
+        free(threadVector);
         return SIMPLEHIDE_INVALID_DATA;
     }
 
     if (hiddenMaskedDataSize > rawDataSize - BITS_SIZE_T * 2) {
         printf("Error: hiddenMaskedDataSize %ld is larger than rawDataSize %ld\n", hiddenMaskedDataSize, rawDataSize);
+        free(threadData);
+        free(threadVector);
         return SIMPLEHIDE_INVALID_DATA;
     }
 
@@ -156,6 +200,8 @@ StegahideStatus extract_hidden_data(const uint8_t *rawData,
 
     if (stepSize == 0) {
         printf("Error: Invalid step size\n");
+        free(threadData);
+        free(threadVector);
         return SIMPLEHIDE_INVALID_DATA;
     }
 
@@ -164,46 +210,182 @@ StegahideStatus extract_hidden_data(const uint8_t *rawData,
         uniformMaskShift = get_uniform_mask_shift(mask);
         if (uniformMaskShift < 1) {
             printf("Error: Invalid uniform mask\n");
+            free(threadData);
+            free(threadVector);
             return SIMPLEHIDE_INVALID_MASK;
         }
     }
 
-    // TODO: use pthread to increase performance  ->  https://github.com/andyd666/simplehide/issues/4
-    for (size_t i = 0; i < hiddenMaskedDataSize; i++) {
+    if (DISABLE_MULTITHREADING) {
+        extractingThreadNumber = 1;
+    }
+
+    totalBytes = hiddenMaskedDataSize;
+    bytesPerThread = totalBytes / extractingThreadNumber;
+    bytesPerThreadRemainder = totalBytes % extractingThreadNumber;
+    threadStartBytePosition = 0;
+    threadStopBytePosition = threadStartBytePosition + bytesPerThread;
+
+    if (bytesPerThreadRemainder > 0) {
+        threadStopBytePosition += 1;
+        bytesPerThreadRemainder--;
+    }
+
+    for (int i = 0; i < extractingThreadNumber; i++) {
+        ((ExtractMaskedDataThreadData *)threadData)[i].rawData                = rawData;
+        ((ExtractMaskedDataThreadData *)threadData)[i].startPosition          = threadStartBytePosition;
+        ((ExtractMaskedDataThreadData *)threadData)[i].stopPosition           = threadStopBytePosition;
+        ((ExtractMaskedDataThreadData *)threadData)[i].hiddenMaskedData       = hiddenMaskedData;
+        ((ExtractMaskedDataThreadData *)threadData)[i].hiddenDataSizePosition = hiddenDataSizePosition;
+        ((ExtractMaskedDataThreadData *)threadData)[i].mask                   = mask;
+        ((ExtractMaskedDataThreadData *)threadData)[i].maskType               = maskType;
+        ((ExtractMaskedDataThreadData *)threadData)[i].uniformMaskShift       = uniformMaskShift;
+        ((ExtractMaskedDataThreadData *)threadData)[i].stepSize               = stepSize;
+
+        pthread_create(&threadVector[i], NULL, &extract_hidden_data_extract_masked_data_thread, &((ExtractMaskedDataThreadData *)threadData)[i]);
+
+        threadStartBytePosition = threadStopBytePosition;
+        threadStopBytePosition += bytesPerThread;
+        if (bytesPerThreadRemainder > 0) {
+            threadStopBytePosition += 1;
+            bytesPerThreadRemainder--;
+        }
+    }
+
+    for (int i = 0; i < extractingThreadNumber; i++) {
+        pthread_join(threadVector[i], NULL);
+        if (extractVerboseLevel >= 3) {
+            printf("Thread %d finished extracting masked data\n", i);
+        }
+    }
+
+    if (DISABLE_MULTITHREADING) {
+        extractingThreadNumber = storedThreads;
+    }
+
+    if (mask == 0xff) {
+        free(threadData);
+        free(threadVector);
+        return SIMPLEHIDE_SUCCESS;
+    }
+
+    free(threadData);
+
+    if (DISABLE_MULTITHREADING) {
+        extractingThreadNumber = 1;
+    }
+
+    threadData = malloc(sizeof(CollectMaskedDataThreadData) * extractingThreadNumber);
+    hiddenData = (uint8_t *)malloc(hiddenDataSize);
+
+    totalBytes = hiddenDataSize;
+    bytesPerThread = totalBytes / extractingThreadNumber;
+    bytesPerThreadRemainder = totalBytes % extractingThreadNumber;
+    threadStartBytePosition = 0;
+    threadStopBytePosition = threadStartBytePosition + bytesPerThread;
+
+    if (bytesPerThreadRemainder > 0) {
+        threadStopBytePosition += 1;
+        bytesPerThreadRemainder--;
+    }
+
+    for (int i = 0; i < extractingThreadNumber; i++) {
+        ((CollectMaskedDataThreadData *)threadData)[i].startPosition    = threadStartBytePosition;
+        ((CollectMaskedDataThreadData *)threadData)[i].stopPosition     = threadStopBytePosition;
+        ((CollectMaskedDataThreadData *)threadData)[i].hiddenMaskedData = hiddenMaskedData;
+        ((CollectMaskedDataThreadData *)threadData)[i].hiddenData       = hiddenData;
+        ((CollectMaskedDataThreadData *)threadData)[i].bitsInMask       = bitsInMask;
+
+        pthread_create(&threadVector[i], NULL, &extract_hidden_data_collect_hidden_bytes_thread, &((CollectMaskedDataThreadData *)threadData)[i]);
+
+        threadStartBytePosition = threadStopBytePosition;
+        threadStopBytePosition += bytesPerThread;
+        if (bytesPerThreadRemainder > 0) {
+            threadStopBytePosition += 1;
+            bytesPerThreadRemainder--;
+        }
+    }
+
+    for (int i = 0; i < extractingThreadNumber; i++) {
+        pthread_join(threadVector[i], NULL);
+        if (extractVerboseLevel >= 3) {
+            printf("Thread %d finished collecting masked data\n", i);
+        }
+    }
+
+    memcpy(hiddenMaskedData, hiddenData, hiddenDataSize);
+
+    if (DISABLE_MULTITHREADING) {
+        extractingThreadNumber = storedThreads;
+    }
+
+    free(hiddenData);
+    free(threadData);
+    free(threadVector);
+
+    return SIMPLEHIDE_SUCCESS;
+}
+
+
+static void *extract_hidden_data_extract_masked_data_thread(void *data__) {
+    ExtractMaskedDataThreadData *threadData = (ExtractMaskedDataThreadData *)data__;
+    const uint8_t *rawData        = threadData->rawData;
+    size_t startPosition          = threadData->startPosition;
+    size_t stopPosition           = threadData->stopPosition;
+    uint8_t *hiddenMaskedData     = threadData->hiddenMaskedData;
+    size_t hiddenDataSizePosition = threadData->hiddenDataSizePosition;
+    uint8_t mask                  = threadData->mask;
+    StegahideMaskType maskType    = threadData->maskType;
+    int uniformMaskShift          = threadData->uniformMaskShift;
+    size_t stepSize               = threadData->stepSize;
+
+    for (size_t i = startPosition; i < stopPosition; i++) {
         size_t currentPosition = (i + 1) * stepSize;
         currentPosition = (currentPosition >= hiddenDataSizePosition) ? currentPosition + BITS_SIZE_T : currentPosition;
 
         hiddenMaskedData[i] = rawData[currentPosition] & mask;
 
-        if (extractVerboseLevel >= 4) {
+        if (extractVerboseLevel >= 4 && extractingThreadNumber == 1) {
             printf("Extracted masked data [%ld] at [%ld]: 0x%02x\n", i, currentPosition + BITS_SIZE_T, hiddenMaskedData[i]);
         }
     }
 
     if (mask == 0xff) {
-        return SIMPLEHIDE_SUCCESS;
+        return NULL;
     }
 
     if (maskType == SIMPLEHIDE_MASK_TYPE_SHIFTED_UNIFORM) {
-        for (size_t i = 0; i < hiddenMaskedDataSize; i++) {
+        for (size_t i = startPosition; i < stopPosition; i++) {
             uint8_t maskedByteBefore = hiddenMaskedData[i];
             hiddenMaskedData[i] >>= uniformMaskShift;
-            if (extractVerboseLevel >= 4) {
+            if (extractVerboseLevel >= 4 && extractingThreadNumber == 1) {
                 printf("Masked data [%ld]: 0x%02x -> 0x%02x after shift\n", i, maskedByteBefore, hiddenMaskedData[i]);
             }
         }
     } else if (maskType == SIMPLEHIDE_MASK_TYPE_COMPLEX) {
-        for (size_t i = 0; i < hiddenMaskedDataSize; i++) {
+        for (size_t i = startPosition; i < stopPosition; i++) {
             uint8_t maskedByteBefore = hiddenMaskedData[i];
             hiddenMaskedData[i] = complex_extract_remask_byte(hiddenMaskedData[i], mask);
-            if (extractVerboseLevel >= 4) {
+            if (extractVerboseLevel >= 4 && extractingThreadNumber == 1) {
                 printf("Masked data [%ld]: 0x%02x -> 0x%02x after remasking\n", i, maskedByteBefore, hiddenMaskedData[i]);
             }
         }
     }
 
-    for (size_t i = 0; i < hiddenDataSize; i++) {
-        if (extractVerboseLevel >= 4) {
+    return NULL;
+}
+
+
+static void *extract_hidden_data_collect_hidden_bytes_thread(void *data__) {
+    CollectMaskedDataThreadData *threadData = (CollectMaskedDataThreadData *)data__;
+    size_t startPosition            = threadData->startPosition;
+    size_t stopPosition             = threadData->stopPosition;
+    const uint8_t *hiddenMaskedData = threadData->hiddenMaskedData;
+    uint8_t *hiddenData             = threadData->hiddenData;
+    int bitsInMask                  = threadData->bitsInMask;
+
+    for (size_t i = startPosition; i < stopPosition; i++) {
+        if (extractVerboseLevel >= 4 && extractingThreadNumber == 1) {
             printf("Collecting byte [%ld]:", i);
             for (int j = 0; j < (8 / bitsInMask); j++) {
                 if (extractVerboseLevel >= 4) {
@@ -212,14 +394,13 @@ StegahideStatus extract_hidden_data(const uint8_t *rawData,
             }
         }
 
-        hiddenMaskedData[i] = collect_hidden_byte(&hiddenMaskedData[i * (8 / bitsInMask)], bitsInMask);
+        hiddenData[i] = collect_hidden_byte(&hiddenMaskedData[i * (8 / bitsInMask)], bitsInMask);
 
-        if (extractVerboseLevel >= 4) {
+        if (extractVerboseLevel >= 4 && extractingThreadNumber == 1) {
             printf(" -> 0x%02x\n", hiddenMaskedData[i]);
         }
     }
-
-    return SIMPLEHIDE_SUCCESS;
+    return NULL;
 }
 
 
@@ -235,9 +416,10 @@ static uint8_t complex_extract_remask_byte(uint8_t inputByte, uint8_t mask) {
 }
 
 
-static uint8_t collect_hidden_byte(uint8_t *bytes, int bitsInMask) {
+static uint8_t collect_hidden_byte(const uint8_t *bytes, int bitsInMask) {
+    uint8_t retval = bytes[0];
     for (int i = 0; i < (8 / bitsInMask); i++) {
-        bytes[0] |= bytes[i] << (i * bitsInMask);
+        retval |= bytes[i] << (i * bitsInMask);
     }
-    return bytes[0];
+    return retval;
 }

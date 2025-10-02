@@ -20,23 +20,45 @@ freely, subject to the following restrictions:
     3. This notice may not be removed or altered from any source
     distribution.
 */
+
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <pthread.h>
 #include "simplehide-lib.h"
 
 
 static int hideVerboseLevel = 0;
+static int hidingThreadNumber = 1;
+
 void set_hide_verbose_level(int level) {
     hideVerboseLevel = level;
 }
 
+void set_hide_thread_number(int num) {
+    if (num < 1) {
+        printf("Hide Thread number cannot be set to %d\n", num);
+        return;
+    }
 
+    if (hideVerboseLevel >= 1) {
+        printf("Setting hiding threads to %d\n", num);
+    }
+
+    hidingThreadNumber = num;
+}
+
+
+static void *find_hidden_data_size_position_thread(void *data__);
 static size_t get_correct_data_bits_in_sequence(const uint8_t rawData[BITS_SIZE_T], size_t rawDataSize);
+
+static void *generate_masked_hidden_data_thread(void *data__);
 
 static uint8_t lookup_table_generator(uint8_t inputByte, uint8_t mask);
 static uint8_t complex_hide_remask_byte(uint8_t inputByte, uint8_t mask);
+
+static void *hide_data_thread(void *data__);
 
 
 StegahideStatus embed_hidden_data_size(uint8_t *rawData, size_t *sizePosition, size_t rawDataSize, size_t hiddenRawDataSize) {
@@ -101,26 +123,113 @@ StegahideStatus embed_hidden_data_size(uint8_t *rawData, size_t *sizePosition, s
 size_t find_hidden_data_size_position(const uint8_t *rawData, size_t rawDataSize, size_t hiddenRawDataSize) {
     size_t currentHiddenDataSizePosition = BITS_SIZE_T; // cannot start at 0
     size_t currentHiddenDataSizeBits = 0;
+    pthread_t *threadVector = (pthread_t *)malloc(sizeof(pthread_t) * hidingThreadNumber);
+    HideDataSizeThreadData *threadData = (HideDataSizeThreadData *)malloc(sizeof(HideDataSizeThreadData) * hidingThreadNumber);
+    size_t totalBytes;
+    size_t bytesPerThread;
+    size_t bytesPerThreadRemainder;
+    size_t threadStartBytePosition;
+    size_t threadStopBytePosition;
+    int storedThreads = hidingThreadNumber;
 
-    // TODO: use pthread to increase search speed  ->  https://github.com/andyd666/simplehide/issues/4
-    for (size_t i = BITS_SIZE_T; i < rawDataSize - BITS_SIZE_T; i++) {
-        size_t correctBits = get_correct_data_bits_in_sequence(&rawData[i], hiddenRawDataSize);
+    if (threadVector == NULL || threadData == NULL) {
+        printf("Error: cannot allocate threadData:\n\tthreadVector = 0x%08lx\n\tdata         = 0x%08lx\n", (size_t)threadVector, (size_t)threadData);
+        if (threadData)
+            free(threadData);
+
+        if (threadVector)
+            free(threadVector);
+
+        return -1;
+    }
+
+    if (DISABLE_MULTITHREADING) {
+        hidingThreadNumber = 1;
+    }
+
+    totalBytes = rawDataSize - (2 * BITS_SIZE_T);
+    bytesPerThread = totalBytes / hidingThreadNumber;
+    bytesPerThreadRemainder = totalBytes % hidingThreadNumber;
+    threadStartBytePosition = BITS_SIZE_T;
+    threadStopBytePosition = threadStartBytePosition + bytesPerThread;
+
+    if (bytesPerThreadRemainder > 0) {
+        threadStopBytePosition += 1;
+        bytesPerThreadRemainder--;
+    }
+
+    for (int i = 0; i < hidingThreadNumber; i++) {
+        threadData[i].rawData           = rawData;
+        threadData[i].hiddenRawDataSize = hiddenRawDataSize;
+        threadData[i].startPosition     = threadStartBytePosition;
+        threadData[i].stopPosition      = threadStopBytePosition;
+        threadData[i].correctBits       = 0;
+        threadData[i].position          = threadStartBytePosition;
+
+        pthread_create(&threadVector[i], NULL, &find_hidden_data_size_position_thread, (void *)(&threadData[i]));
+
+        threadStartBytePosition = threadStopBytePosition;
+        threadStopBytePosition += bytesPerThread;
+        if (bytesPerThreadRemainder > 0) {
+            threadStopBytePosition += 1;
+            bytesPerThreadRemainder--;
+        }
+    }
+
+    for (int i = 0; i < hidingThreadNumber; i++) {
+        pthread_join(threadVector[i], NULL);
+        if (hideVerboseLevel >= 3) {
+            printf("Thread %d found best match at %ld with %ld bits\n", i, threadData[i].position, threadData[i].correctBits);
+        }
+    }
+
+    for (int i = 0; i < hidingThreadNumber; i++) {
+        if (threadData[i].correctBits >= currentHiddenDataSizeBits) {
+            currentHiddenDataSizeBits = threadData[i].correctBits;
+            currentHiddenDataSizePosition = threadData[i].position;
+        }
+    }
+
+    if (DISABLE_MULTITHREADING) {
+        hidingThreadNumber = storedThreads;
+    }
+
+    free(threadData);
+    free(threadVector);
+
+    return currentHiddenDataSizePosition;
+}
+
+static void *find_hidden_data_size_position_thread(void *data__) {
+    HideDataSizeThreadData *threadData = (HideDataSizeThreadData *)(data__);
+    const uint8_t *rawData   = threadData->rawData;
+    size_t hiddenRawDataSize = threadData->hiddenRawDataSize;
+    size_t startPosition     = threadData->startPosition;
+    size_t stopPosition      = threadData->stopPosition;
+    size_t correctBits       = threadData->correctBits;
+    size_t position          = threadData->position;
+
+    size_t currentHiddenDataSizeBits = 0;
+
+    for (size_t i = startPosition; i < stopPosition; i++) {
+        correctBits = get_correct_data_bits_in_sequence(&rawData[i], hiddenRawDataSize);
         if (correctBits == BITS_SIZE_T) {
-            if (hideVerboseLevel >= 3) {
+            if (hideVerboseLevel >= 3 && hidingThreadNumber == 1) {
                 printf("New Correct bits sizePosition: %ld\n", i);
-                printf("New Correct bits:          %ld\n", correctBits);
+                printf("New Correct bits:              %ld\n", correctBits);
             }
-            return i;
+            break;
         } else if (correctBits >= currentHiddenDataSizeBits) { // Take the furthest best match
             currentHiddenDataSizeBits = correctBits;
-            currentHiddenDataSizePosition = i;
-            if (hideVerboseLevel >= 3) {
-                printf("New Correct bits sizePosition: %ld\n", currentHiddenDataSizePosition);
-                printf("New Correct bits:          %ld\n", correctBits);
+            position = i;
+            if (hideVerboseLevel >= 3 && hidingThreadNumber == 1) {
+                printf("New Correct bits sizePosition: %ld\n", position);
+                printf("New Correct bits:              %ld\n", correctBits);
             }
         }
     }
-    return currentHiddenDataSizePosition;
+    threadData->position = position;
+    return NULL;
 }
 
 
@@ -216,6 +325,25 @@ StegahideStatus generate_masked_hidden_data(const uint8_t *hiddenRawData, size_t
     StegahideMaskType maskType;
     int shiftSize = 1;
     size_t split;
+    pthread_t *threadVector = (pthread_t *)malloc(sizeof(pthread_t) * hidingThreadNumber);
+    GenerateMaskedHiddenDataThreadData *threadData = (GenerateMaskedHiddenDataThreadData *)malloc(sizeof(GenerateMaskedHiddenDataThreadData) * hidingThreadNumber);
+    size_t totalBytes;
+    size_t bytesPerThread;
+    size_t bytesPerThreadRemainder;
+    size_t threadStartBytePosition;
+    size_t threadStopBytePosition;
+    int storedThreads = hidingThreadNumber;
+
+    if (threadVector == NULL || threadData == NULL) {
+        printf("Error: cannot allocate threadData:\n\tthreadVector = 0x%08lx\n\tdata         = 0x%08lx\n", (size_t)threadVector, (size_t)threadData);
+        if (threadData)
+            free(threadData);
+
+        if (threadVector)
+            free(threadVector);
+
+        return SIMPLEHIDE_MEMORY_ALLOCATION_ERROR;
+    }
 
     if (!hiddenRawData || !hiddenMaskedData || !get_bits_in_mask(mask)) {
         printf("Error: Invalid input data\n");
@@ -224,6 +352,8 @@ StegahideStatus generate_masked_hidden_data(const uint8_t *hiddenRawData, size_t
             printf("Masked hidden data: 0x%08lX\n", (size_t)hiddenMaskedData);
             printf("Mask:               0x%02X\n", mask);
         }
+        free(threadData);
+        free(threadVector);
         return SIMPLEHIDE_INVALID_DATA;
     }
 
@@ -232,6 +362,8 @@ StegahideStatus generate_masked_hidden_data(const uint8_t *hiddenRawData, size_t
         shiftSize = get_uniform_mask_shift(mask);
         if (shiftSize < 1) {
             printf("Error: Invalid uniform mask\n");
+            free(threadData);
+            free(threadVector);
             return SIMPLEHIDE_INVALID_MASK;
         }
     }
@@ -239,14 +371,79 @@ StegahideStatus generate_masked_hidden_data(const uint8_t *hiddenRawData, size_t
     split = hiddenMaskedDataSize / hiddenRawDataSize;
     if (((split != 1) && (split != 2) && (split != 4) && (split != 8)) || ((hiddenMaskedDataSize % hiddenRawDataSize) != 0)) {
         printf("Error: Invalid split factor\n");
+        free(threadData);
+        free(threadVector);
         return SIMPLEHIDE_INVALID_MASK;
     }
 
-    // TODO: use pthread to increase splitting speed  ->  https://github.com/andyd666/simplehide/issues/4
-    for (size_t i = 0; i < hiddenRawDataSize; i++) {
+    if (DISABLE_MULTITHREADING) {
+        hidingThreadNumber = 1;
+    }
+
+    totalBytes = hiddenRawDataSize;
+    bytesPerThread = totalBytes / hidingThreadNumber;
+    bytesPerThreadRemainder = totalBytes % hidingThreadNumber;
+    threadStartBytePosition = 0;
+    threadStopBytePosition = threadStartBytePosition + bytesPerThread;
+
+    if (bytesPerThreadRemainder > 0) {
+        threadStopBytePosition += 1;
+        bytesPerThreadRemainder--;
+    }
+
+    for (int i = 0; i < hidingThreadNumber; i++) {
+        threadData[i].rawData          = hiddenRawData;
+        threadData[i].startPosition    = threadStartBytePosition;
+        threadData[i].stopPosition     = threadStopBytePosition;
+        threadData[i].hiddenMaskedData = hiddenMaskedData;
+        threadData[i].mask             = mask;
+        threadData[i].maskType         = maskType;
+        threadData[i].split            = split;
+        threadData[i].shiftSize        = shiftSize;
+
+        pthread_create(&threadVector[i], NULL, &generate_masked_hidden_data_thread, (void *)(&threadData[i]));
+
+        threadStartBytePosition = threadStopBytePosition;
+        threadStopBytePosition += bytesPerThread;
+        if (bytesPerThreadRemainder > 0) {
+            threadStopBytePosition += 1;
+            bytesPerThreadRemainder--;
+        }
+    }
+
+    for (int i = 0; i < hidingThreadNumber; i++) {
+        pthread_join(threadVector[i], NULL);
+        if (hideVerboseLevel >= 3) {
+            printf("Thread %d finished generating masked data\n", i);
+        }
+    }
+
+    if (DISABLE_MULTITHREADING) {
+        hidingThreadNumber = storedThreads;
+    }
+
+    free(threadData);
+    free(threadVector);
+
+    return SIMPLEHIDE_SUCCESS;
+}
+
+
+static void *generate_masked_hidden_data_thread(void *data__) {
+    GenerateMaskedHiddenDataThreadData *threadData = (GenerateMaskedHiddenDataThreadData *)data__;
+    const uint8_t *hiddenRawData = threadData->rawData;
+    size_t startPosition         = threadData->startPosition;
+    size_t stopPosition          = threadData->stopPosition;
+    uint8_t *hiddenMaskedData    = threadData->hiddenMaskedData;
+    uint8_t mask                 = threadData->mask;
+    StegahideMaskType maskType   = threadData->maskType;
+    size_t split                 = threadData->split;
+    int shiftSize                = threadData->shiftSize;
+
+    for (size_t i = startPosition; i < stopPosition; i++) {
         for (size_t j = split - 1; j < split; j--) {
             hiddenMaskedData[i * split + j] = (hiddenRawData[i] >> (8 / split * j)) & (0xFF >> (8 - 8 / split));
-            if (hideVerboseLevel >= 4) {
+            if (hideVerboseLevel >= 4 && hidingThreadNumber == 1) {
                 if (j == split - 1) {
                     printf("Hidden data [%ld]: 0x%02x -> ", i, hiddenRawData[i]);
                 }
@@ -259,7 +456,7 @@ StegahideStatus generate_masked_hidden_data(const uint8_t *hiddenRawData, size_t
                 hiddenMaskedData[i * split + j] <<= shiftSize;
             }
         }
-        if (hideVerboseLevel >= 4) {
+        if (hideVerboseLevel >= 4 && hidingThreadNumber == 1) {
             printf("-> ");
             for (size_t j = split - 1; j < split; j--) {
                 printf("%02x ", hiddenMaskedData[i * split + j]);
@@ -267,8 +464,7 @@ StegahideStatus generate_masked_hidden_data(const uint8_t *hiddenRawData, size_t
             printf("\n");
         }
     }
-
-    return SIMPLEHIDE_SUCCESS;
+    return NULL;
 }
 
 
@@ -394,10 +590,32 @@ StegahideStatus hide_data(uint8_t *rawData,
                           size_t dataSizePosition)
 {
     size_t stepSize;
+    pthread_t *threadVector = (pthread_t *)malloc(sizeof(pthread_t) * hidingThreadNumber);
+    HideDataThreadData *threadData = (HideDataThreadData *)malloc(sizeof(HideDataThreadData) * hidingThreadNumber);
+    size_t totalBytes;
+    size_t bytesPerThread;
+    size_t bytesPerThreadRemainder;
+    size_t threadStartBytePosition;
+    size_t threadStopBytePosition;
+    int storedThreads = hidingThreadNumber;
+
+    if (threadVector == NULL || threadData == NULL) {
+        printf("Error: cannot allocate threadData:\n\tthreadVector = 0x%08lx\n\tdata         = 0x%08lx\n", (size_t)threadVector, (size_t)threadData);
+        if (threadData)
+            free(threadData);
+
+        if (threadVector)
+            free(threadVector);
+
+        return SIMPLEHIDE_MEMORY_ALLOCATION_ERROR;
+    }
+
     // data sizes and dataSizePosition must be verified by user of this function
     if (!rawData || !hiddenMaskedData) {
         printf("rawData          = 0x%08lX\n", (size_t)rawData);
         printf("hiddenMaskedData = 0x%08lX\n", (size_t)hiddenMaskedData);
+        free(threadData);
+        free(threadVector);
         return SIMPLEHIDE_INVALID_DATA;
     }
 
@@ -417,28 +635,89 @@ StegahideStatus hide_data(uint8_t *rawData,
 
     if (stepSize == 0) {
         printf("Error: Invalid step size\n");
+        free(threadData);
+        free(threadVector);
         return SIMPLEHIDE_INVALID_DATA;
-    }
-    if (stepSize == 1) {
+    } else if (stepSize == 1) {
         printf("Warning: Step size is 1. Consider decreasing hidden data size\n");
     }
 
-    // TODO: use pthread to increase hiding speeds  ->  https://github.com/andyd666/simplehide/issues/4
-    for (size_t i = 0; i < hiddenMaskedDataSize; i++) {
+    if (DISABLE_MULTITHREADING) {
+        hidingThreadNumber = 1;
+    }
+
+    totalBytes = hiddenMaskedDataSize;
+    bytesPerThread = totalBytes / hidingThreadNumber;
+    bytesPerThreadRemainder = totalBytes % hidingThreadNumber;
+    threadStartBytePosition = 0;
+    threadStopBytePosition = threadStartBytePosition + bytesPerThread;
+
+    if (bytesPerThreadRemainder > 0) {
+        threadStopBytePosition += 1;
+        bytesPerThreadRemainder--;
+    }
+
+    for (int i = 0; i < hidingThreadNumber; i++) {
+        threadData[i].rawData          = rawData;
+        threadData[i].startPosition    = threadStartBytePosition;
+        threadData[i].stopPosition     = threadStopBytePosition;
+        threadData[i].hiddenMaskedData = hiddenMaskedData;
+        threadData[i].mask             = mask;
+        threadData[i].stepSize         = stepSize;
+        threadData[i].dataSizePosition = dataSizePosition;
+
+        pthread_create(&threadVector[i], NULL, &hide_data_thread, (void *)(&threadData[i]));
+
+        threadStartBytePosition = threadStopBytePosition;
+        threadStopBytePosition += bytesPerThread;
+        if (bytesPerThreadRemainder > 0) {
+            threadStopBytePosition += 1;
+            bytesPerThreadRemainder--;
+        }
+    }
+
+    for (int i = 0; i < hidingThreadNumber; i++) {
+        pthread_join(threadVector[i], NULL);
+        if (hideVerboseLevel >= 3) {
+            printf("Thread %d finished hiding data\n", i);
+        }
+    }
+
+    if (DISABLE_MULTITHREADING) {
+        hidingThreadNumber = storedThreads;
+    }
+
+    free(threadData);
+    free(threadVector);
+
+    return SIMPLEHIDE_SUCCESS;
+}
+
+
+static void *hide_data_thread(void *data__) {
+    HideDataThreadData *threadData = (HideDataThreadData *)data__;
+    uint8_t *rawData                = threadData->rawData;
+    size_t startPosition            = threadData->startPosition;
+    size_t stopPosition             = threadData->stopPosition;
+    const uint8_t *hiddenMaskedData = threadData->hiddenMaskedData;
+    uint8_t mask                    = threadData->mask;
+    size_t stepSize                 = threadData->stepSize;
+    size_t dataSizePosition         = threadData->dataSizePosition;
+
+    for (size_t i = startPosition; i < stopPosition; i++) {
         size_t currentPosition = (i + 1) * stepSize;
         currentPosition = (currentPosition >= dataSizePosition) ? currentPosition + BITS_SIZE_T : currentPosition;
 
-        if (hideVerboseLevel >= 4) {
+        if (hideVerboseLevel >= 4 && hidingThreadNumber == 1) {
             printf("Raw data [%ld]: 0x%02x x 0x%02x -> ", currentPosition + BITS_SIZE_T, rawData[currentPosition], hiddenMaskedData[i]);
         }
 
         rawData[currentPosition] &= ~mask;
         rawData[currentPosition] |= hiddenMaskedData[i];
 
-        if (hideVerboseLevel >= 4) {
+        if (hideVerboseLevel >= 4 && hidingThreadNumber == 1) {
             printf("0x%02x\n", rawData[currentPosition]);
         }
     }
-
-    return SIMPLEHIDE_SUCCESS;
+    return NULL;
 }
