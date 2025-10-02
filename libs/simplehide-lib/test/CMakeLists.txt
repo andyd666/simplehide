@@ -23,6 +23,7 @@ if (NOT TARGET ${PROJECT_NAME})
     add_library(${PROJECT_NAME} STATIC ${SOURCES})
 endif()
 add_executable(run_test test.c)
+add_executable(speed_test speed_test.cpp)
 
 #target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 

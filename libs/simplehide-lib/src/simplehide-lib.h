@@ -29,20 +29,23 @@ freely, subject to the following restrictions:
 
 
 #define SIMPLEHIDE_LIB_VERSION_MAJOR 0
-#define SIMPLEHIDE_LIB_VERSION_MINOR 1
+#define SIMPLEHIDE_LIB_VERSION_MINOR 2
 #define SIMPLEHIDE_LIB_VERSION_PATCH 0
 
 
 #define BITS_SIZE_T (sizeof(size_t) * 8)
 
+#define DISABLE_MULTITHREADING 0
+
 
 typedef enum {
-    SIMPLEHIDE_UNKNOWN_STATUS   = -1,
-    SIMPLEHIDE_SUCCESS          =  0,
-    SIMPLEHIDE_INVALID_DATA     =  1,
-    SIMPLEHIDE_INVALID_MASK     =  2,
-    SIMPLEHIDE_MASK_EMBED_ERROR =  3,
-    SIMPLEHIDE_SIZE_EMBED_ERROR =  4,
+    SIMPLEHIDE_UNKNOWN_STATUS          = -1,
+    SIMPLEHIDE_SUCCESS                 =  0,
+    SIMPLEHIDE_INVALID_DATA            =  1,
+    SIMPLEHIDE_INVALID_MASK            =  2,
+    SIMPLEHIDE_MASK_EMBED_ERROR        =  3,
+    SIMPLEHIDE_SIZE_EMBED_ERROR        =  4,
+    SIMPLEHIDE_MEMORY_ALLOCATION_ERROR =  5,
 } StegahideStatus;
 
 
@@ -98,6 +101,48 @@ typedef struct HideDataSizeThreadData {
     size_t correctBits;
     size_t position;
 } HideDataSizeThreadData;
+
+typedef struct GenerateMaskedHiddenDataThreadData {
+    const uint8_t *rawData;
+    size_t startPosition;
+    size_t stopPosition;
+    uint8_t *hiddenMaskedData;
+    uint8_t mask;
+    StegahideMaskType maskType;
+    size_t split;
+    int shiftSize;
+} GenerateMaskedHiddenDataThreadData;
+
+typedef struct HideDataThreadData {
+    uint8_t *rawData;
+    size_t startPosition;
+    size_t stopPosition;
+    const uint8_t *hiddenMaskedData;
+    uint8_t mask;
+    size_t stepSize;
+    size_t dataSizePosition;
+} HideDataThreadData;
+
+
+typedef struct ExtractMaskedDataThreadData {
+    const uint8_t *rawData;
+    size_t startPosition;
+    size_t stopPosition;
+    uint8_t *hiddenMaskedData;
+    size_t hiddenDataSizePosition;
+    uint8_t mask;
+    StegahideMaskType maskType;
+    int uniformMaskShift;
+    size_t stepSize;
+} ExtractMaskedDataThreadData;
+
+typedef struct CollectMaskedDataThreadData {
+    size_t startPosition;
+    size_t stopPosition;
+    const uint8_t *hiddenMaskedData;
+    uint8_t *hiddenData;
+    int bitsInMask;
+} CollectMaskedDataThreadData;
 
 
 #endif // __SIMPLEHIDE_H__
