@@ -61,11 +61,9 @@ static uint8_t complex_hide_remask_byte(uint8_t inputByte, uint8_t mask);
 static void *hide_data_thread(void *data__);
 
 
-StegahideStatus embed_hidden_data_size(uint8_t *rawData, size_t *sizePosition, size_t rawDataSize, size_t hiddenRawDataSize) {
+StegahideStatus embed_hidden_data_size(uint8_t *rawData, size_t rawDataSize, size_t hiddenRawDataSize) {
     uint8_t verboseDataSizeBytesBefore[BITS_SIZE_T];
     uint8_t verboseDataSizeBytesAfter[BITS_SIZE_T];
-    uint8_t verboseDataPositionBytesBefore[BITS_SIZE_T];
-    uint8_t verboseDataPositionBytesAfter[BITS_SIZE_T];
 
     if (rawData == NULL || rawDataSize < BITS_SIZE_T || hiddenRawDataSize == 0) {
         return SIMPLEHIDE_INVALID_DATA;
@@ -79,40 +77,23 @@ StegahideStatus embed_hidden_data_size(uint8_t *rawData, size_t *sizePosition, s
         printf("\n");
     }
 
-    *sizePosition = find_hidden_data_size_position(rawData, rawDataSize, hiddenRawDataSize);
-    if (*sizePosition + BITS_SIZE_T > rawDataSize) {
-        printf("Data size %ld, sizePosition %ld is out of bounds\n", rawDataSize, *sizePosition);
-        return SIMPLEHIDE_SIZE_EMBED_ERROR;
-    }
-
-    if (hideVerboseLevel >= 1) {
-        printf("Found best hidden rawData size sizePosition: %ld\n", *sizePosition);
-    }
-
     if (hideVerboseLevel >= 3) {
-        memcpy(verboseDataSizeBytesBefore, &rawData[*sizePosition], BITS_SIZE_T);
-        memcpy(verboseDataPositionBytesBefore, &rawData[0], BITS_SIZE_T);
+        memcpy(verboseDataSizeBytesBefore, &rawData[0], BITS_SIZE_T);
     }
 
     for (size_t i = 0; i < BITS_SIZE_T; i++) {
-        rawData[*sizePosition + i] = (rawData[*sizePosition + i] & ~0x01) | ((hiddenRawDataSize & (0x01 << i)) >> i);
-        rawData[i] = (rawData[i] & ~0x01) | ((*sizePosition >> i) & 0x01);
+        rawData[i] = (rawData[i] & ~0x01) | ((hiddenRawDataSize & (0x01 << i)) >> i);
     }
 
     if (hideVerboseLevel >= 3) {
         printf("Size embedding result:\n");
-        memcpy(verboseDataSizeBytesAfter, &rawData[*sizePosition], BITS_SIZE_T);
-        memcpy(verboseDataPositionBytesAfter, &rawData[0], BITS_SIZE_T);
+        memcpy(verboseDataSizeBytesAfter, &rawData[0], BITS_SIZE_T);
         for (size_t i = 0; i < BITS_SIZE_T; i++) {
-            printf("[%10ld]: 0x%02x -> 0x%02x (%ld)            [%2ld]: 0x%02x -> 0x%02x (%d)\n",
-                    *sizePosition + i,
+            printf("[%10ld]: 0x%02x -> 0x%02x (%ld)\n",
+                    i,
                     verboseDataSizeBytesBefore[i],
                     verboseDataSizeBytesAfter[i],
-                    (hiddenRawDataSize & (0x01 << i)) >> i,
-                    i,
-                    verboseDataPositionBytesBefore[i],
-                    verboseDataPositionBytesAfter[i],
-                    (uint8_t)((*sizePosition >> i) & 0x01));
+                    (hiddenRawDataSize & (0x01 << i)) >> i);
         }
     }
 
@@ -586,8 +567,7 @@ StegahideStatus hide_data(uint8_t *rawData,
                           size_t rawDataSize,
                           const uint8_t *hiddenMaskedData,
                           size_t hiddenMaskedDataSize,
-                          uint8_t mask,
-                          size_t dataSizePosition)
+                          uint8_t mask)
 {
     size_t stepSize;
     pthread_t *threadVector = (pthread_t *)malloc(sizeof(pthread_t) * hidingThreadNumber);
@@ -622,7 +602,6 @@ StegahideStatus hide_data(uint8_t *rawData,
     // Skip data size position
     rawData += BITS_SIZE_T;
     rawDataSize -= BITS_SIZE_T;
-    dataSizePosition -= BITS_SIZE_T;
 
     stepSize = (rawDataSize - BITS_SIZE_T) / (hiddenMaskedDataSize + 1);
 
@@ -630,7 +609,6 @@ StegahideStatus hide_data(uint8_t *rawData,
         printf("Hiding data with step size: %ld\n", stepSize);
         printf("rawData:          0x%08lX\n", (size_t)rawData);
         printf("rawDataSize:      %ld\n", rawDataSize);
-        printf("dataSizePosition: %ld\n", dataSizePosition);
     }
 
     if (stepSize == 0) {
@@ -664,7 +642,6 @@ StegahideStatus hide_data(uint8_t *rawData,
         threadData[i].hiddenMaskedData = hiddenMaskedData;
         threadData[i].mask             = mask;
         threadData[i].stepSize         = stepSize;
-        threadData[i].dataSizePosition = dataSizePosition;
 
         pthread_create(&threadVector[i], NULL, &hide_data_thread, (void *)(&threadData[i]));
 
@@ -702,11 +679,9 @@ static void *hide_data_thread(void *data__) {
     const uint8_t *hiddenMaskedData = threadData->hiddenMaskedData;
     uint8_t mask                    = threadData->mask;
     size_t stepSize                 = threadData->stepSize;
-    size_t dataSizePosition         = threadData->dataSizePosition;
 
     for (size_t i = startPosition; i < stopPosition; i++) {
         size_t currentPosition = (i + 1) * stepSize;
-        currentPosition = (currentPosition >= dataSizePosition) ? currentPosition + BITS_SIZE_T : currentPosition;
 
         if (hideVerboseLevel >= 4 && hidingThreadNumber == 1) {
             printf("Raw data [%ld]: 0x%02x x 0x%02x -> ", currentPosition + BITS_SIZE_T, rawData[currentPosition], hiddenMaskedData[i]);

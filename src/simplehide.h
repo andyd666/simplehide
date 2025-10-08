@@ -31,7 +31,7 @@ freely, subject to the following restrictions:
 
 
 #define SIMPLEHIDE_VERSION_MAJOR 0
-#define SIMPLEHIDE_VERSION_MINOR 2
+#define SIMPLEHIDE_VERSION_MINOR 3
 #define SIMPLEHIDE_VERSION_PATCH 0
 
 #if defined(DEBUG)

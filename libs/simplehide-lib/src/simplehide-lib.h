@@ -29,7 +29,7 @@ freely, subject to the following restrictions:
 
 
 #define SIMPLEHIDE_LIB_VERSION_MAJOR 0
-#define SIMPLEHIDE_LIB_VERSION_MINOR 2
+#define SIMPLEHIDE_LIB_VERSION_MINOR 3
 #define SIMPLEHIDE_LIB_VERSION_PATCH 0
 
 
@@ -64,7 +64,7 @@ void set_extract_verbose_level(int level);
 void set_extract_thread_number(int num);
 
 // Hiding hidden data:
-StegahideStatus embed_hidden_data_size(uint8_t *rawData, size_t *sizePosition, size_t rawDataSize, size_t hiddenRawDataSize);
+StegahideStatus embed_hidden_data_size(uint8_t *rawData, size_t rawDataSize, size_t hiddenRawDataSize);
 size_t find_hidden_data_size_position(const uint8_t *rawData, size_t rawDataSize, size_t hiddenRawDataSize);
 StegahideStatus get_hidden_data_masked_size(uint8_t mask, size_t hiddenRawDataSize, size_t *maskedHiddenDataSize);
 StegahideStatus verify_mask(uint8_t mask, size_t hiddenRawDataSize, size_t *maskedHiddenDataSize);
@@ -77,20 +77,17 @@ StegahideStatus hide_data(uint8_t *rawData,
                           size_t rawDataSize,
                           const uint8_t *hiddenMaskedData,
                           size_t hiddenMaskedDataSize,
-                          uint8_t mask,
-                          size_t dataSizePosition);
+                          uint8_t mask);
 
 
 // Extracting hidden data:
-size_t extract_hidden_data_size_position(const uint8_t *rawData, size_t rawDataSize);
 uint8_t extract_mask(const uint8_t *rawData, size_t rawDataSize);
-size_t extract_hidden_data_size(const uint8_t *rawData, size_t rawDataSize, size_t hiddenDataSizePosition);
+size_t extract_hidden_data_size(const uint8_t *rawData, size_t rawDataSize);
 StegahideStatus extract_hidden_data(const uint8_t *rawData,
                                     size_t rawDataSize,
                                     uint8_t *hiddenMaskedData,
                                     size_t hiddenDataSize,
                                     size_t hiddenMaskedDataSize,
-                                    size_t hiddenDataSizePosition,
                                     uint8_t mask);
 
 typedef struct HideDataSizeThreadData {
@@ -120,7 +117,6 @@ typedef struct HideDataThreadData {
     const uint8_t *hiddenMaskedData;
     uint8_t mask;
     size_t stepSize;
-    size_t dataSizePosition;
 } HideDataThreadData;
 
 
@@ -129,7 +125,6 @@ typedef struct ExtractMaskedDataThreadData {
     size_t startPosition;
     size_t stopPosition;
     uint8_t *hiddenMaskedData;
-    size_t hiddenDataSizePosition;
     uint8_t mask;
     StegahideMaskType maskType;
     int uniformMaskShift;

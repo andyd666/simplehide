@@ -34,7 +34,6 @@ int main(int argc, char **argv) {
     uint8_t *hiddenMaskedData = NULL;
     uint8_t *extractedHiddenMaskedData = NULL;
 
-    size_t hiddenDataSizePosition;
     char *hiddenDataSizeBits = NULL;
     char *byteBits = NULL;
 
@@ -83,7 +82,7 @@ int main(int argc, char **argv) {
         hiddenData[i] = rand();
     }
 
-    embed_hidden_data_size(fileData, &hiddenDataSizePosition, fileDataSize, hiddenRawDataSize);
+    embed_hidden_data_size(fileData, fileDataSize, hiddenRawDataSize);
 
     hide_mask(fileData, mask);
 
@@ -97,17 +96,15 @@ int main(int argc, char **argv) {
 
     generate_masked_hidden_data(hiddenData, hiddenRawDataSize, hiddenMaskedData, hiddenMaskedDataSize, mask);
 
-    hide_data(fileData, fileDataSize, hiddenMaskedData, hiddenMaskedDataSize, mask, hiddenDataSizePosition);
+    hide_data(fileData, fileDataSize, hiddenMaskedData, hiddenMaskedDataSize, mask);
 
     // Save file here...
 
-    size_t extractedHiddendataSizePosition = extract_hidden_data_size_position(fileData, fileDataSize);
-    size_t extractedHiddenDataSize = extract_hidden_data_size(fileData, fileDataSize, extractedHiddendataSizePosition);
+    size_t extractedHiddenDataSize = extract_hidden_data_size(fileData, fileDataSize);
     uint8_t extractedMask = extract_mask(fileData, fileDataSize);
     size_t extractedHiddenMaskedDataSize;
     verify_mask(mask, hiddenRawDataSize, &extractedHiddenMaskedDataSize);
 
-    printf("Extracted hidden data size position: %ld, expected: %ld\n", extractedHiddendataSizePosition, hiddenDataSizePosition);
     printf("Extracted hidden data size: %ld, expected: %ld\n", extractedHiddenDataSize, hiddenRawDataSize);
     printf("Extracted mask: 0x%02X, expected: 0x%02X\n", extractedMask, mask);
 
@@ -119,7 +116,7 @@ int main(int argc, char **argv) {
         goto teardown;
     }
 
-    if (extract_hidden_data(fileData, fileDataSize, extractedHiddenMaskedData, hiddenRawDataSize, extractedHiddenMaskedDataSize, hiddenDataSizePosition, mask) != SIMPLEHIDE_SUCCESS) {
+    if (extract_hidden_data(fileData, fileDataSize, extractedHiddenMaskedData, hiddenRawDataSize, extractedHiddenMaskedDataSize, mask) != SIMPLEHIDE_SUCCESS) {
         printf("Error extracting hidden data\n");
     }
 

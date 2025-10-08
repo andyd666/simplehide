@@ -99,18 +99,9 @@ int main(int argc, const char *argv[]) {
 
         if (simpleHide.embedSize) {
             status = embed_hidden_data_size(simpleHide.inputFileData.data(),
-                                            &simpleHide.hiddenDataSizePosition,
                                             simpleHide.inputFileData.size(),
                                             simpleHide.secretFileData.size());
-        } else {
-            simpleHide.hiddenDataSizePosition = BITS_SIZE_T;
         }
-
-        if ((status != SIMPLEHIDE_SUCCESS) || (simpleHide.hiddenDataSizePosition > simpleHide.inputFileData.size())) {
-            std::cout << DEBUG_PRINT_LINE << "Error: Could not embed hidden data size" << std::endl;
-            return -1;
-        }
-        TRACE();
 
         if (simpleHide.embedMask) {
             status = hide_mask(simpleHide.inputFileData.data(), simpleHide.mask);
@@ -149,8 +140,7 @@ int main(int argc, const char *argv[]) {
                            simpleHide.inputFileData.size(),
                            simpleHide.secretRemaskedData.data(),
                            simpleHide.secretRemaskedData.size(),
-                           simpleHide.mask,
-                           simpleHide.hiddenDataSizePosition);
+                           simpleHide.mask);
 
         if (status != SIMPLEHIDE_SUCCESS) {
             std::cout << DEBUG_PRINT_LINE << "Error: Could not hide data" << std::endl;
@@ -165,7 +155,6 @@ int main(int argc, const char *argv[]) {
 
     } else {
         size_t extractedHiddenMaskedDataSize = 0;
-        size_t extractedHiddenDataSizePosition = 0;
 
         if (simpleHide.mask == 0x00) {
             simpleHide.mask = extract_mask(simpleHide.inputFileData.data(), simpleHide.inputFileData.size());
@@ -174,17 +163,8 @@ int main(int argc, const char *argv[]) {
         if (simpleHide.secretFileData.size() == 0) {
             size_t extractedHiddenRawDataSize = 0;
 
-            extractedHiddenDataSizePosition = extract_hidden_data_size_position(simpleHide.inputFileData.data(), simpleHide.inputFileData.size());
-
-            if ((extractedHiddenDataSizePosition < BITS_SIZE_T) || (extractedHiddenDataSizePosition > simpleHide.inputFileData.size())) {
-                std::cout << DEBUG_PRINT_LINE << "Error: Invalid extracted hidden data size position: " << extractedHiddenDataSizePosition << std::endl;
-                return -1;
-            }
-            TRACE();
-
             extractedHiddenRawDataSize = extract_hidden_data_size(simpleHide.inputFileData.data(),
-                                                                  simpleHide.inputFileData.size(),
-                                                                  extractedHiddenDataSizePosition);
+                                                                  simpleHide.inputFileData.size());
             if ((extractedHiddenRawDataSize == 0) || (extractedHiddenRawDataSize > simpleHide.inputFileData.size() - BITS_SIZE_T * 2)) {
                 std::cout << DEBUG_PRINT_LINE << "Error: Invalid extracted hidden data size: " << extractedHiddenRawDataSize << std::endl;
                 return -1;
@@ -209,7 +189,6 @@ int main(int argc, const char *argv[]) {
                                      simpleHide.secretRemaskedData.data(),
                                      simpleHide.secretFileData.size(),
                                      simpleHide.secretRemaskedData.size(),
-                                     extractedHiddenDataSizePosition,
                                      simpleHide.mask);
 
         if (status != SIMPLEHIDE_SUCCESS) {

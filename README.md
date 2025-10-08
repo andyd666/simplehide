@@ -33,104 +33,29 @@ If 1 bit is set - byte will be split into 8 parts; 2 bits - byte will be split i
 
 **0x1B** is 00011011 in binary. It has 4 set bits, so secret data bytes will be split into 2 parts.
 
-2. Searching for perfect location for storing secret data size.
+2. Putting hiding data size into first bytes:
 
-"Perfect" in this regard is a subarray of size_t bytes (64 bits in x64 machines) in which single less signifficant bit forms a secret data size when combined together.
-In example we have 13 bytes, so size will be 0x000000000000000D. This number is then stored ar found address bit by bit
-In reality it is very unlikely to find "perfect" size location, so last found best case scenario is used. Example below shows what happens to data in some test input data:
-
-    Found best hidden rawData size sizePosition: 501528
-    Size embedding result:
-    [501528]: 0xbd -> 0xbd (1)
-    [501529]: 0xbd -> 0xbc (0)
-    [501530]: 0xbd -> 0xbd (1)
-    [501531]: 0xff -> 0xff (1)
-    [501532]: 0xba -> 0xba (0)
-    [501533]: 0xba -> 0xba (0)
-    [501534]: 0xba -> 0xba (0)
-    [501535]: 0xff -> 0xfe (0)
-    [501536]: 0xba -> 0xba (0)
-    [501537]: 0xba -> 0xba (0)
-    [501538]: 0xba -> 0xba (0)
-    [501539]: 0xff -> 0xfe (0)
-    [501540]: 0xba -> 0xba (0)
-    [501541]: 0xba -> 0xba (0)
-    [501542]: 0xba -> 0xba (0)
-    [501543]: 0xff -> 0xfe (0)
-    [501544]: 0xba -> 0xba (0)
-    [501545]: 0xba -> 0xba (0)
-    [501546]: 0xba -> 0xba (0)
-    [501547]: 0xff -> 0xfe (0)
-    [501548]: 0xba -> 0xba (0)
-    [501549]: 0xba -> 0xba (0)
-    [501550]: 0xba -> 0xba (0)
-    [501551]: 0xff -> 0xfe (0)
-    [501552]: 0xba -> 0xba (0)
-    [501553]: 0xba -> 0xba (0)
-    [501554]: 0xba -> 0xba (0)
-    [501555]: 0xff -> 0xfe (0)
-    [501556]: 0xba -> 0xba (0)
-    [501557]: 0xba -> 0xba (0)
-    [501558]: 0xba -> 0xba (0)
-    [501559]: 0xff -> 0xfe (0)
-    [501560]: 0xba -> 0xba (0)
-    [501561]: 0xba -> 0xba (0)
-    [501562]: 0xba -> 0xba (0)
-    [501563]: 0xff -> 0xfe (0)
-    [501564]: 0xba -> 0xba (0)
-    [501565]: 0xba -> 0xba (0)
-    [501566]: 0xba -> 0xba (0)
-    [501567]: 0xff -> 0xfe (0)
-    [501568]: 0xba -> 0xba (0)
-    [501569]: 0xba -> 0xba (0)
-    [501570]: 0xba -> 0xba (0)
-    [501571]: 0xff -> 0xfe (0)
-    [501572]: 0xba -> 0xba (0)
-    [501573]: 0xba -> 0xba (0)
-    [501574]: 0xba -> 0xba (0)
-    [501575]: 0xff -> 0xfe (0)
-    [501576]: 0xba -> 0xba (0)
-    [501577]: 0xba -> 0xba (0)
-    [501578]: 0xba -> 0xba (0)
-    [501579]: 0xff -> 0xfe (0)
-    [501580]: 0xba -> 0xba (0)
-    [501581]: 0xba -> 0xba (0)
-    [501582]: 0xba -> 0xba (0)
-    [501583]: 0xff -> 0xfe (0)
-    [501584]: 0xba -> 0xba (0)
-    [501585]: 0xba -> 0xba (0)
-    [501586]: 0xba -> 0xba (0)
-    [501587]: 0xff -> 0xfe (0)
-    [501588]: 0xba -> 0xba (0)
-    [501589]: 0xba -> 0xba (0)
-    [501590]: 0xba -> 0xba (0)
-    [501591]: 0xff -> 0xfe (0)
-
-Note: putting secret size is not required, but this address should be found either way.
-
-3. Putting found address into first bytes:
-
-Found best hidden rawData size sizePosition: 501528
+Data size is 14 (1110) for given example
 
     [ 0]: 0xff -> 0xfe (0)
-    [ 1]: 0xff -> 0xfe (0)
-    [ 2]: 0xff -> 0xfe (0)
+    [ 1]: 0xff -> 0xff (1)
+    [ 2]: 0xff -> 0xff (1)
     [ 3]: 0xff -> 0xff (1)
-    [ 4]: 0xff -> 0xff (1)
+    [ 4]: 0xff -> 0xfe (0)
     [ 5]: 0xff -> 0xfe (0)
     [ 6]: 0xff -> 0xfe (0)
     [ 7]: 0xff -> 0xfe (0)
-    [ 8]: 0xff -> 0xff (1)
-    [ 9]: 0xff -> 0xff (1)
-    [10]: 0xff -> 0xff (1)
+    [ 8]: 0xff -> 0xfe (0)
+    [ 9]: 0xff -> 0xfe (0)
+    [10]: 0xff -> 0xfe (0)
     [11]: 0xff -> 0xfe (0)
     [12]: 0xff -> 0xfe (0)
-    [13]: 0xff -> 0xff (1)
+    [13]: 0xff -> 0xfe (0)
     [14]: 0xff -> 0xfe (0)
-    [15]: 0xff -> 0xff (1)
-    [16]: 0xff -> 0xff (1)
-    [17]: 0xff -> 0xff (1)
-    [18]: 0xff -> 0xff (1)
+    [15]: 0xff -> 0xfe (0)
+    [16]: 0xff -> 0xfe (0)
+    [17]: 0xff -> 0xfe (0)
+    [18]: 0xff -> 0xfe (0)
     [19]: 0xff -> 0xfe (0)
     [20]: 0xff -> 0xfe (0)
     [21]: 0xff -> 0xfe (0)
@@ -177,13 +102,13 @@ Found best hidden rawData size sizePosition: 501528
     [62]: 0x55 -> 0x54 (0)
     [63]: 0xff -> 0xfe (0)
 
-4. Hiding mask
+3. Hiding mask
 
 The same algorith is for mask - it hidden at first 8 bytes of input data at every second bit.
 
 Note: mask may not be hidden as well
 
-5. Secret data splitting:
+4. Secret data splitting:
 
 As mask has 4 set bits, secret data will be split in halves. Note, initial 13 bytes will now require 26 bytes to store data.
 
@@ -256,8 +181,6 @@ hiddenMaskedDataSize - remasked data size (26 in example above)
 8. Hide secret data
 
 At first - clean set mask bits in every input data **i \* stepSize** byte. **i** is a whole number from 1 to hiddenMaskedDataSize
-
-When **i \* stepSize** is larger or equal to hidden data size position - **i \* stepSize + BITS_SIZE_T** must be used instead.
 
 ### Extracting algorithm
 

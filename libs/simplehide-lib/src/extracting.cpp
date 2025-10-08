@@ -56,28 +56,6 @@ static uint8_t complex_extract_remask_byte(uint8_t inputByte, uint8_t mask);
 static uint8_t collect_hidden_byte(const uint8_t *bytes, int bitsInMask);
 
 
-size_t extract_hidden_data_size_position(const uint8_t *rawData, size_t rawDataSize) {
-    size_t hiddenDataSizePosition = 0;
-
-    if (!rawData || rawDataSize < BITS_SIZE_T) {
-        printf("rawData is NULL or too small\n");
-        return 0;
-    }
-
-    for (size_t i = 0; i < BITS_SIZE_T; i++) {
-        hiddenDataSizePosition |= (rawData[i] & 0x01) << i;
-        if (extractVerboseLevel >= 3) {
-            printf("Raw data [%ld]: 0x%02x (%d)\n", i, rawData[i], (rawData[i] & 0x01));
-        }
-    }
-
-    if (extractVerboseLevel >= 1) {
-        printf("Extracted hidden data size position: %ld\n", hiddenDataSizePosition);
-    }
-
-    return hiddenDataSizePosition;
-}
-
 uint8_t extract_mask(const uint8_t *rawData, size_t rawDataSize) {
     uint8_t mask = 0;
     if (!rawData || rawDataSize < BITS_SIZE_T) {
@@ -97,7 +75,7 @@ uint8_t extract_mask(const uint8_t *rawData, size_t rawDataSize) {
 }
 
 
-size_t extract_hidden_data_size(const uint8_t *rawData, size_t rawDataSize, size_t hiddenDataSizePosition) {
+size_t extract_hidden_data_size(const uint8_t *rawData, size_t rawDataSize) {
     size_t hiddenRawDataSize = 0;
 
     if (!rawData || rawDataSize < BITS_SIZE_T) {
@@ -109,15 +87,10 @@ size_t extract_hidden_data_size(const uint8_t *rawData, size_t rawDataSize, size
         printf("Exctracting data size\n");
     }
 
-    if ((hiddenDataSizePosition > rawDataSize) || (hiddenDataSizePosition < BITS_SIZE_T)) {
-        printf("Error: hiddenDataSizePosition %ld is out of bounds (rawDataSize %ld)\n", hiddenDataSizePosition, rawDataSize);
-        return 0;
-    }
-
     for (size_t i = 0; i < BITS_SIZE_T; i++) { // Skip last byte, as there can be mask
-        hiddenRawDataSize |= (rawData[hiddenDataSizePosition + i] & 0x01) << i;
+        hiddenRawDataSize |= (rawData[i] & 0x01) << i;
         if (extractVerboseLevel >= 3) {
-            printf("Raw data [%ld]: 0x%02x (%d)\n", hiddenDataSizePosition + i, rawData[hiddenDataSizePosition + i], (rawData[hiddenDataSizePosition + i] & 0x01));
+            printf("Raw data [%ld]: 0x%02x (%d)\n", i, rawData[i], (rawData[i] & 0x01));
         }
     }
 
@@ -139,7 +112,6 @@ StegahideStatus extract_hidden_data(const uint8_t *rawData,
                                     uint8_t *hiddenMaskedData,
                                     size_t hiddenDataSize,
                                     size_t hiddenMaskedDataSize,
-                                    size_t hiddenDataSizePosition,
                                     uint8_t mask)
 {
     StegahideMaskType maskType;
@@ -190,7 +162,6 @@ StegahideStatus extract_hidden_data(const uint8_t *rawData,
 
     rawData += BITS_SIZE_T;
     rawDataSize -= BITS_SIZE_T;
-    hiddenDataSizePosition -= BITS_SIZE_T;
 
     stepSize = (rawDataSize - BITS_SIZE_T) / (hiddenMaskedDataSize + 1);
 
@@ -236,7 +207,6 @@ StegahideStatus extract_hidden_data(const uint8_t *rawData,
         ((ExtractMaskedDataThreadData *)threadData)[i].startPosition          = threadStartBytePosition;
         ((ExtractMaskedDataThreadData *)threadData)[i].stopPosition           = threadStopBytePosition;
         ((ExtractMaskedDataThreadData *)threadData)[i].hiddenMaskedData       = hiddenMaskedData;
-        ((ExtractMaskedDataThreadData *)threadData)[i].hiddenDataSizePosition = hiddenDataSizePosition;
         ((ExtractMaskedDataThreadData *)threadData)[i].mask                   = mask;
         ((ExtractMaskedDataThreadData *)threadData)[i].maskType               = maskType;
         ((ExtractMaskedDataThreadData *)threadData)[i].uniformMaskShift       = uniformMaskShift;
@@ -333,7 +303,6 @@ static void *extract_hidden_data_extract_masked_data_thread(void *data__) {
     size_t startPosition          = threadData->startPosition;
     size_t stopPosition           = threadData->stopPosition;
     uint8_t *hiddenMaskedData     = threadData->hiddenMaskedData;
-    size_t hiddenDataSizePosition = threadData->hiddenDataSizePosition;
     uint8_t mask                  = threadData->mask;
     StegahideMaskType maskType    = threadData->maskType;
     int uniformMaskShift          = threadData->uniformMaskShift;
@@ -341,7 +310,6 @@ static void *extract_hidden_data_extract_masked_data_thread(void *data__) {
 
     for (size_t i = startPosition; i < stopPosition; i++) {
         size_t currentPosition = (i + 1) * stepSize;
-        currentPosition = (currentPosition >= hiddenDataSizePosition) ? currentPosition + BITS_SIZE_T : currentPosition;
 
         hiddenMaskedData[i] = rawData[currentPosition] & mask;
 
