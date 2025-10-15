@@ -15,6 +15,7 @@ endif()
 
 # Set compile and link options
 add_compile_options(-O3 -Wall -Wextra -Wpedantic)
+add_link_options(-pthread)
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     set(CMAKE_VERBOSE_MAKEFILE ON)

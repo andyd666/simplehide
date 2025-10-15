@@ -238,7 +238,7 @@ template<typename T> void drawDistribution(const std::vector<T> &data) {
             else
                 precision = 3;
 
-            std::cout << std::setw(6) << std::setprecision(precision) << i * binHeightValuesNumber * maxPercent / binHeightPercentPrintStep / 100 << "│";
+            std::cout << std::setw(6) << std::setprecision(precision) << upperPercent << "│";
         } else {
             std::cout << "      │";
         }
